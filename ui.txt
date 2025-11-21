@@ -663,10 +663,10 @@ function ExoUI:Init(Title)
         TeleportService:Teleport(game.PlaceId)
     end)
 
-    -- === 3. Keybind Toggle (Right Shift) ===
+    -- === 3. Keybind Toggle (M Key) ===
     UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-        -- Ensure input is RightShift and not processed by core game scripts
-        if input.KeyCode == Enum.KeyCode.RightShift and not gameProcessedEvent then
+        -- Ensure input is M key and not processed by core game scripts
+        if input.KeyCode == Enum.KeyCode.M and not gameProcessedEvent then
             -- Check if the main frame still exists before attempting to toggle
             if MainFrame and MainFrame.Parent then
                 MainFrame.Visible = not MainFrame.Visible
