@@ -88,7 +88,8 @@ function ExoUI:Init(Title)
     local ControlsContainer = Create("Frame", {
         Name = "ControlsContainer",
         Size = UDim2.new(0, 70, 1, 0), -- Enough width for two buttons + padding
-        Position = UDim2.new(1, -Config.Padding, 0, 0), -- Positioned 10px from the right edge
+        -- Positioned 10px from the right edge
+        Position = UDim2.new(1, -Config.Padding, 0, 0), 
         BackgroundTransparency = 1,
         Parent = HeaderFrame
     })
@@ -103,11 +104,11 @@ function ExoUI:Init(Title)
         Parent = ControlsContainer
     })
     
-    -- Header Text (adjusted size to make space for control buttons)
-    -- Total width needed: 10px left padding + 70px controls = 80px space needed on the right.
+    -- Header Text 
+    -- FIX: Adjusted width to reserve 85 pixels for padding and controls (10px + 70px + 5px extra safety)
     Create("TextLabel", {
         Name = "TitleLabel",
-        Size = UDim2.new(1, -85, 1, 0), -- Adjusted width: 100% width minus 85 pixels.
+        Size = UDim2.new(1, -85, 1, 0), 
         Position = UDim2.new(0, Config.Padding, 0, 0),
         Text = Title or "ExoUI",
         Font = Config.Font,
@@ -139,8 +140,6 @@ function ExoUI:Init(Title)
     MinimizeButton.MouseButton1Click:Connect(function()
         -- Toggle the visibility of the MainFrame
         MainFrame.Visible = not MainFrame.Visible
-        -- When minimized, the title bar remains visible (since it's part of the ScreenGui), 
-        -- but since MainFrame holds the title bar, we just hide the MainFrame itself.
     end)
     
     -- === 2. Close/Rejoin Button (X) ===
@@ -328,9 +327,11 @@ function ExoUI:CreateTab(Name, IsDefault)
             
             -- Crucial: Close any open dropdowns when switching tabs
             -- This relies on the convention that dropdown options are parented to ScreenGui
-            for _, child in ipairs(ScreenGui:GetChildren()) do
-                if child.Name == "DropdownOptionsContainer" then
-                    child:Destroy()
+            if ScreenGui then
+                for _, child in ipairs(ScreenGui:GetChildren()) do
+                    if child.Name == "DropdownOptionsContainer" then
+                        child:Destroy()
+                    end
                 end
             end
         end
@@ -743,7 +744,7 @@ function ExoUI.Controls:_CreateDropdown(ParentFrame, controlName, options, defau
             BorderSizePixel = 0,
             Visible = false,
             ZIndex = 5, -- High ZIndex to ensure it is on top
-            Parent = ScreenGui -- <-- **FIX: Parented to ScreenGui for overlay**
+            Parent = ScreenGui -- <-- **Parented to ScreenGui for overlay**
         })
         
         Create("UICorner", {
