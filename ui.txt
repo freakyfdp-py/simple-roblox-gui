@@ -8,8 +8,9 @@
     - Toast notifications.
     - Blur effect toggle.
     
-    FIX: The finalizeTab function now uses a slightly longer task.wait(0.1) 
-    to robustly fix canvas size calculation failures caused by UI layout timing issues.
+    FIX: Added a task.wait(0.05) inside createTab after button parenting 
+    to ensure UIListLayout accurately calculates the size and position of all tabs 
+    before the rest of the tab logic executes.
 ]]
 
 local player = game.Players.LocalPlayer
@@ -99,18 +100,15 @@ local function createToastNotification(message, duration, color)
     toast:Destroy()
 end
 
--- Renamed to finalizeTab, but keeping the internal name for consistency within the module
+-- Function to ensure the ScrollingFrame CanvasSize correctly fits its contents
 local function updateCanvasSize(content) 
-    -- This ensures the scrolling frame content fits the controls
     local listLayout = content:FindFirstChildOfClass("UIListLayout")
     if listLayout then
-        -- NEW ROBUST FIX: Wait 0.1 seconds to guarantee the UIListLayout has finished calculating 
+        -- Wait 0.1 seconds to guarantee the UIListLayout has finished calculating 
         -- its AbsoluteContentSize after all children have been added/re-parented.
         task.wait(0.1) 
         
-        -- Calculate total height needed for children and padding
         local totalHeight = listLayout.AbsoluteContentSize.Y
-        -- Calculate visible height of the ScrollingFrame
         local visibleHeight = content.AbsoluteSize.Y
         -- Set canvas size, ensuring it's at least as tall as the visible area
         content.CanvasSize = UDim2.new(0, 0, 0, math.max(totalHeight + 20, visibleHeight))
@@ -128,8 +126,8 @@ local function createTab(name)
 
     -- Create Button
     local tabButton = Instance.new("TextButton")
-    -- Adjust size to be responsive to the tabs frame size, dividing space by number of tabs
-    tabButton.Size = UDim2.new(1 / (table.getn(tabs) + 1), 0, 1, 0)
+    -- We set the size to 1,0,1,0 initially, and let the UIListLayout size it later
+    tabButton.Size = UDim2.new(1, 0, 1, 0)
     tabButton.Text = name
     tabButton.BackgroundColor3 = TAB_ACTIVE_COLOR
     tabButton.TextColor3 = Color3.new(1, 1, 1)
@@ -142,7 +140,10 @@ local function createTab(name)
     tabCorner.CornerRadius = UDim.new(0, 5)
     tabCorner.Parent = tabButton
 
-    -- Re-size existing tab buttons to fit the new tab
+    -- NEW: Crucial delay here to allow the UIListLayout in tabsFrame to update its children's sizes
+    task.wait(0.05) 
+
+    -- Re-size existing tab buttons to fit the new tab (this logic relies on the UIListLayout being active)
     local tabCount = table.getn(tabs) + 1
     local newSize = UDim2.new(1 / tabCount, 0, 1, 0)
     for _, t in pairs(tabs) do
