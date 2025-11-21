@@ -9,6 +9,8 @@ local TweenService = game:GetService("TweenService")
 
 -- The main table to be returned as the module
 local ExoUI = {}
+-- >>> FIX: Define the Controls table HERE, before it's used by the section methods.
+ExoUI.Controls = {}
 
 -- Variables
 local Player = Players.LocalPlayer
@@ -43,10 +45,6 @@ end
 
 -- =================================================================
 -- UI Creation Functions (Init, Tab, Section, Controls)
--- [Note: Full implementation details are omitted here for brevity, 
--- but this file MUST contain the complete, functional code for 
--- ExoUI:Init, ExoUI:CreateTab, and the Control functions 
--- (_CreateCheckbox, _CreateSlider, etc.) to compile and run.]
 -- =================================================================
 
 -- 1. Main UI and Drag Logic
@@ -405,6 +403,7 @@ function ExoUI:CreateTab(Name, IsDefault)
         }
 
         -- Add Control Creation Methods
+        -- These now safely reference ExoUI.Controls which is defined at the top
         function sectionTable:checkbox(controlName, defaultValue, callback)
             return ExoUI.Controls:_CreateCheckbox(self.Controls, controlName, defaultValue, callback)
         end
@@ -906,8 +905,6 @@ function ExoUI.Controls:_CreateTextbox(ParentFrame, controlName, placeholder, de
     return ControlFrame
 end
 
--- Create the Controls table (needed for the section methods)
-ExoUI.Controls = {}
 
 -- Return the main module table
 return ExoUI
