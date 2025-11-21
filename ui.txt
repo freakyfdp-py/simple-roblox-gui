@@ -1,3 +1,4 @@
+return (function()
 local player = game.Players.LocalPlayer
 local PlayerGui = player:WaitForChild("PlayerGui")
 local TweenService = game:GetService("TweenService")
@@ -25,7 +26,6 @@ local currentTab = nil
 local blur = Instance.new("BlurEffect")
 local isMinimized = false
 local gui, outer, titleBar, contentArea, tabsFrame
-
 local isDragging, isResizing = false, false
 local dragStartPos, frameStartPos, frameStartSize = Vector2.new(), UDim2.new(), UDim2.new()
 
@@ -173,13 +173,13 @@ local function initializeGUI()
     outer.Parent=gui
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0,10)
-    corner.Parent=outer
+    corner.Parent = outer
     titleBar = Instance.new("Frame")
     titleBar.Size=UDim2.new(1,0,0,40)
     titleBar.BackgroundColor3=TITLE_COLOR
-    titleBar.Parent=outer
+    titleBar.Parent = outer
     local titleLabel=Instance.new("TextLabel")
-    titleLabel.Size=UDim2.new(1,0,1,0)
+    titleLabel.Size = UDim2.new(1,0,1,0)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = "🌟 Exploit Controls Pro"
     titleLabel.TextColor3 = Color3.new(1,1,1)
@@ -206,9 +206,15 @@ end
 
 initializeGUI()
 
-local ModularMenu = {createTab=createTab,createCheckbox=createCheckbox,createToastNotification=createToastNotification,getControlValue=function(n)
-    local s=controlStates[n]
-    return s and s.State or nil
-end}
+local ModularMenu = {
+    createTab=createTab,
+    createCheckbox=createCheckbox,
+    createToastNotification=createToastNotification,
+    getControlValue=function(n)
+        local s=controlStates[n]
+        return s and s.State or nil
+    end
+}
 
 return ModularMenu
+end)()
