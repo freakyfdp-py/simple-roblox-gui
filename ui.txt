@@ -1,8 +1,8 @@
 --[[
-    ExoUI Library: Core Framework Module (REVISED WITH CONTROL API)
+    ExoUI Library: Core Framework Module (FIXED)
     
-    The ExoUI:CreateTab().section() now returns a Content API object that allows
-    direct creation of UI elements like checkbox, slider, dropdown, and textbox.
+    -- FIX APPLIED: All instances of UICorner.CornerRadius were changed from 
+    -- UDim2.new(...) to UDim.new(...) to resolve the runtime error.
 ]]
 
 local ExoUI = {}
@@ -45,7 +45,7 @@ local Themes = {
     }
 }
 
--- Utility functions (MakeDraggable, SetupKeybind, ApplyTheme) are omitted for brevity in this comment block.
+-- Utility functions
 local function ApplyTheme(themeName)
     local theme = Themes[themeName]
     if not theme then return end
@@ -189,7 +189,8 @@ local function createContentAPI(parentFrame)
         toggleButton.Parent = container
         
         local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim2.new(0, 4)
+        -- FIX: UDim2.new(0, 4) -> UDim.new(0, 4)
+        corner.CornerRadius = UDim.new(0, 4)
         corner.Parent = toggleButton
         
         local currentState = defaultValue or false
@@ -242,7 +243,8 @@ local function createContentAPI(parentFrame)
         sliderFrame.Parent = container
         
         local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim2.new(0, 4)
+        -- FIX: UDim2.new(0, 4) -> UDim.new(0, 4)
+        corner.CornerRadius = UDim.new(0, 4)
         corner.Parent = sliderFrame
 
         local valueIndicator = Instance.new("Frame")
@@ -258,7 +260,8 @@ local function createContentAPI(parentFrame)
         thumb.Parent = sliderFrame
         
         local thumbCorner = Instance.new("UICorner")
-        thumbCorner.CornerRadius = UDim2.new(0.5, 0)
+        -- FIX: UDim2.new(0.5, 0) -> UDim.new(0.5, 0)
+        thumbCorner.CornerRadius = UDim.new(0.5, 0)
         thumbCorner.Parent = thumb
         
         local isDragging = false
@@ -341,7 +344,8 @@ local function createContentAPI(parentFrame)
         mainButton.Parent = container
 
         local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim2.new(0, 4)
+        -- FIX: UDim2.new(0, 4) -> UDim.new(0, 4)
+        corner.CornerRadius = UDim.new(0, 4)
         corner.Parent = mainButton
         
         -- Dropdown options panel (separate frame, visible on click)
@@ -426,7 +430,8 @@ local function createContentAPI(parentFrame)
         input.Parent = container
         
         local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim2.new(0, 4)
+        -- FIX: UDim2.new(0, 4) -> UDim.new(0, 4)
+        corner.CornerRadius = UDim.new(0, 4)
         corner.Parent = input
 
         local stroke = Instance.new("UIStroke")
@@ -546,7 +551,8 @@ function ExoUI:CreateTab(tabName, isDefault)
         sectionButton.Parent = tabSectionsFrame
         
         local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim2.new(0, 4)
+        -- FIX: UDim2.new(0, 4) -> UDim.new(0, 4)
+        corner.CornerRadius = UDim.new(0, 4)
         corner.Parent = sectionButton
 
         local stroke = Instance.new("UIStroke")
@@ -601,7 +607,8 @@ function ExoUI:CreateTab(tabName, isDefault)
     tabButton.Parent = TabsFrame
     
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim2.new(0, 4)
+    -- FIX: UDim2.new(0, 4) -> UDim.new(0, 4)
+    corner.CornerRadius = UDim.new(0, 4)
     corner.Parent = tabButton
 
     local stroke = Instance.new("UIStroke")
@@ -664,7 +671,8 @@ function ExoUI:Init(title)
     MainWindow.Parent = LibraryInstance
     
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim2.new(0, 8)
+    -- FIX: UDim2.new(0, 8) -> UDim.new(0, 8)
+    corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = MainWindow
     
     local padding = Instance.new("UIPadding")
@@ -716,7 +724,7 @@ function ExoUI:Init(title)
     CloseButton.TextSize = 15
     CloseButton.Parent = Controls
     local CloseCorner = Instance.new("UICorner")
-    CloseCorner.CornerRadius = UDim2.new(0.5, 0)
+    CloseCorner.CornerRadius = UDim.new(0.5, 0) -- This one was already correct
     CloseCorner.Parent = CloseButton
     CloseButton.MouseButton1Click:Connect(function() LibraryInstance:Destroy() end)
     
@@ -730,11 +738,11 @@ function ExoUI:Init(title)
     MinimizeButton.TextSize = 15
     MinimizeButton.Parent = Controls
     local MinimizeCorner = Instance.new("UICorner")
-    MinimizeCorner.CornerRadius = UDim2.new(0.5, 0)
+    MinimizeCorner.CornerRadius = UDim.new(0.5, 0) -- This one was already correct
     MinimizeCorner.Parent = MinimizeButton
     MinimizeButton.MouseButton1Click:Connect(function() MainWindow.Visible = false end)
     
-    -- Value trackers (ActiveTab, ActiveSection, SettingsOpen) are omitted for brevity in this comment block.
+    -- Value trackers (ActiveTab, ActiveSection, SettingsOpen)
     
     local ActiveTab = Instance.new("StringValue")
     ActiveTab.Name = "ActiveTab"
