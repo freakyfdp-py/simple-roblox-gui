@@ -1,5 +1,5 @@
 -- This is the complete, self-contained, image-free library code.
--- It resolves the Vector2/Vector3 input error and uses only native Roblox UI properties.
+-- This version fixes the Vector2/Vector3 error in the drag logic and removes the invalid 'Capture' property usage.
 
 -- Core Roblox Services
 local Players = game:GetService("Players")
@@ -14,7 +14,7 @@ local Player = Players.LocalPlayer
 local ScreenGui = nil
 local CurrentDraggableFrame = nil
 local IsDragging = false
-local DragOffset = nil
+local DragOffset = nil -- Stores a Vector2
 
 -- Configuration
 local Config = {
@@ -28,7 +28,7 @@ local Config = {
     ControlHeight = 25,
     Font = Enum.Font.Roboto,
     FontSize = Enum.FontSize.Size14,
-    CornerRadius = UDim.new(0.05, 0) -- Used internally for relative sizing
+    CornerRadius = UDim.new(0.05, 0)
 }
 
 -- Utility Functions
@@ -54,14 +54,14 @@ function ExoUI:Init(Title)
 
     local MainFrame = Create("Frame", {
         Name = "MainFrame",
-        Size = UDim2.new(0, 400),
-        Position = UDim2.new(0.5, -200, 0.5, -200), -- Centered
+        Size = UDim2.new(0, 400, 0, 500), -- Set an initial size
+        Position = UDim2.new(0.5, -200, 0.5, -250), -- Centered
         BackgroundColor3 = Config.PrimaryColor,
         BorderSizePixel = 0,
         Parent = ScreenGui,
     })
 
-    -- Add rounded corners (using UDim)
+    -- Add rounded corners
     Create("UICorner", {
         CornerRadius = UDim.new(0, 8),
         Parent = MainFrame
@@ -76,6 +76,7 @@ function ExoUI:Init(Title)
         Parent = MainFrame
     })
 
+    -- Apply corner radius only to the top corners of the header (since it's inside MainFrame)
     Create("UICorner", {
         CornerRadius = UDim.new(0, 8),
         Parent = HeaderFrame
@@ -95,34 +96,47 @@ function ExoUI:Init(Title)
         TextXAlignment = Enum.TextXAlignment.Left
     })
     
-    -- Dragging Logic (FIXED: Explicitly uses GetMouseLocation for Vector2)
-    local function StartDrag(input)
+    -- Dragging Logic (FIXED: Explicitly converts InputObject.Position (Vector3) to Vector2)
+    local function StartDrag(input, gameProcessedEvent)
+        if gameProcessedEvent then return end
+        
+        -- Only allow drag on MouseButton1 or Touch
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             IsDragging = true
             CurrentDraggableFrame = MainFrame
-            -- Use GetMouseLocation which always returns a Vector2 screen coordinate
-            local mousePosition = UserInputService:GetMouseLocation()
-            DragOffset = mousePosition - MainFrame.Position.Offset
+            
+            -- FIX: InputObject.Position is Vector3. Convert to Vector2 for screen position math.
+            local inputPosition = Vector2.new(input.Position.X, input.Position.Y) 
+            
+            DragOffset = inputPosition - MainFrame.Position.Offset
+            
+            -- Removed: input.Capture = true (due to error message)
         end
     end
 
-    local function DoDrag()
-        if IsDragging and CurrentDraggableFrame then
-            -- Use GetMouseLocation to avoid Vector3 from InputChanged events (e.g., from touch/gamepad)
-            local mousePosition = UserInputService:GetMouseLocation()
+    local function DoDrag(input)
+        -- Check if we are dragging and the input type is a movement action
+        if IsDragging and CurrentDraggableFrame and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             
-            local newPosition = mousePosition - DragOffset
+            -- FIX: InputObject.Position is Vector3. Convert to Vector2.
+            local inputPosition = Vector2.new(input.Position.X, input.Position.Y)
+            
+            local newPosition = inputPosition - DragOffset
+            -- Set the frame's position using UDim2 with the calculated pixel offset
             CurrentDraggableFrame.Position = UDim2.new(0, newPosition.X, 0, newPosition.Y)
         end
     end
 
-    local function EndDrag()
-        IsDragging = false
-        CurrentDraggableFrame = nil
-        DragOffset = nil
+    local function EndDrag(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            IsDragging = false
+            CurrentDraggableFrame = nil
+            DragOffset = nil
+        end
     end
 
     HeaderFrame.InputBegan:Connect(StartDrag)
+    -- Connect to UserInputService.InputChanged so drag continues even outside the HeaderFrame bounds
     UserInputService.InputChanged:Connect(DoDrag)
     UserInputService.InputEnded:Connect(EndDrag)
 
@@ -250,16 +264,10 @@ function ExoUI:CreateTab(Name, IsDefault)
         Button = TabButton,
         Content = TabContent,
         Sections = {},
-        section = function(self, sectionName, layoutOrder)
-            return self:_CreateSection(sectionName, layoutOrder)
-        end,
-        _CreateSection = function(self, sectionName, layoutOrder)
-            return self:_CreateSection(sectionName, layoutOrder)
-        end
     }
     
     -- Add Section Creation Method to Tab Table
-    function tabTable:_CreateSection(sectionName, layoutOrder)
+    function tabTable:section(sectionName, layoutOrder)
         local SectionFrame = Create("Frame", {
             Name = sectionName:gsub("%s+", "_") .. "Section",
             Size = UDim2.new(1, 0, 0, 0), -- Size will be determined by its children
@@ -304,6 +312,7 @@ function ExoUI:CreateTab(Name, IsDefault)
         })
         
         -- Automatic sizing based on content
+        -- This property change listener is the robust way to auto-resize
         ControlsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
             SectionFrame.Size = UDim2.new(1, 0, 0, ControlsLayout.AbsoluteContentSize.Y + TitleLabel.Size.Y.Offset)
         end)
@@ -321,20 +330,20 @@ function ExoUI:CreateTab(Name, IsDefault)
 
         -- Add Control Creation Methods
         function sectionTable:checkbox(controlName, defaultValue, callback)
-            return self:_CreateCheckbox(controlName, defaultValue, callback)
+            return ExoUI.Controls:_CreateCheckbox(self.Controls, controlName, defaultValue, callback)
         end
         function sectionTable:slider(controlName, min, max, defaultValue, increment, callback)
-            return self:_CreateSlider(controlName, min, max, defaultValue, increment, callback)
+            return ExoUI.Controls:_CreateSlider(self.Controls, controlName, min, max, defaultValue, increment, callback)
         end
         function sectionTable:dropdown(controlName, options, defaultValue, callback)
-            return self:_CreateDropdown(controlName, options, defaultValue, callback)
+            return ExoUI.Controls:_CreateDropdown(self.Controls, controlName, options, defaultValue, callback)
         end
         function sectionTable:textbox(controlName, placeholder, defaultValue, callback)
-            return self:_CreateTextbox(controlName, placeholder, defaultValue, callback)
+            return ExoUI.Controls:_CreateTextbox(self.Controls, controlName, placeholder, defaultValue, callback)
         end
         
         -- Store section
-        table.insert(self.Sections, sectionTable)
+        table.insert(tabTable.Sections, sectionTable)
         return sectionTable
     end
     
@@ -345,17 +354,17 @@ end
 -- =================================================================
 -- Control Creation Methods
 -- =================================================================
+ExoUI.Controls = {}
 
 -- 3. Checkbox
-function tabTable:_CreateCheckbox(controlName, defaultValue, callback)
-    local SectionFrame = self.Controls
+function ExoUI.Controls:_CreateCheckbox(ParentFrame, controlName, defaultValue, callback)
     
     local ControlFrame = Create("Frame", {
         Name = controlName:gsub("%s+", "_") .. "Control",
         Size = UDim2.new(1, 0, 0, Config.ControlHeight),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Parent = SectionFrame
+        Parent = ParentFrame
     })
     
     -- Label
@@ -409,7 +418,7 @@ function tabTable:_CreateCheckbox(controlName, defaultValue, callback)
 
     local function updateVisuals()
         Checkmark.Visible = currentState
-        callback(currentState)
+        pcall(callback, currentState)
     end
     
     local function onClick()
@@ -426,15 +435,14 @@ function tabTable:_CreateCheckbox(controlName, defaultValue, callback)
 end
 
 -- 4. Slider
-function tabTable:_CreateSlider(controlName, min, max, defaultValue, increment, callback)
-    local SectionFrame = self.Controls
+function ExoUI.Controls:_CreateSlider(ParentFrame, controlName, min, max, defaultValue, increment, callback)
 
     local ControlFrame = Create("Frame", {
         Name = controlName:gsub("%s+", "_") .. "Control",
         Size = UDim2.new(1, 0, 0, Config.ControlHeight * 2),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Parent = SectionFrame
+        Parent = ParentFrame
     })
     
     local currentValue = defaultValue
@@ -521,7 +529,7 @@ function tabTable:_CreateSlider(controlName, min, max, defaultValue, increment, 
         Parent = Thumb
     })
 
-    -- Dragging Logic (FIXED: Explicitly uses GetMouseLocation for Vector2)
+    -- Dragging Logic
     local IsDraggingSlider = false
 
     local function updateValue(inputPos)
@@ -548,27 +556,35 @@ function tabTable:_CreateSlider(controlName, min, max, defaultValue, increment, 
         pcall(callback, currentValue)
     end
 
-    local function StartDragSlider(input)
+    local function StartDragSlider(input, gameProcessedEvent)
+        if gameProcessedEvent then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             IsDraggingSlider = true
-            -- Use InputObject.Position which is a Vector3, but we only need X/Y, so call updateValue with the Vector2 screen position
-            updateValue(UserInputService:GetMouseLocation()) 
+            -- FIX: InputObject.Position is Vector3. Convert to Vector2 for screen position math.
+            local inputPosition = Vector2.new(input.Position.X, input.Position.Y)
+            updateValue(inputPosition)
         end
     end
     
-    local function DoDragSlider()
-        if IsDraggingSlider then
-            -- Use GetMouseLocation to safely get the Vector2 screen position
-            updateValue(UserInputService:GetMouseLocation()) 
+    local function DoDragSlider(input)
+        if IsDraggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            -- FIX: InputObject.Position is Vector3. Convert to Vector2.
+            local inputPosition = Vector2.new(input.Position.X, input.Position.Y)
+            updateValue(inputPosition)
         end
     end
 
-    local function EndDragSlider()
-        IsDraggingSlider = false
+    local function EndDragSlider(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            IsDraggingSlider = false
+        end
     end
 
+    -- Connect to InputBegan on the draggable surfaces
     Thumb.InputBegan:Connect(StartDragSlider)
     BackgroundBar.InputBegan:Connect(StartDragSlider)
+    
+    -- Connect to global input events for continuous dragging
     UserInputService.InputChanged:Connect(DoDragSlider)
     UserInputService.InputEnded:Connect(EndDragSlider)
     
@@ -579,15 +595,14 @@ function tabTable:_CreateSlider(controlName, min, max, defaultValue, increment, 
 end
 
 -- 5. Dropdown
-function tabTable:_CreateDropdown(controlName, options, defaultValue, callback)
-    local SectionFrame = self.Controls
+function ExoUI.Controls:_CreateDropdown(ParentFrame, controlName, options, defaultValue, callback)
     
     local ControlFrame = Create("Frame", {
         Name = controlName:gsub("%s+", "_") .. "Control",
         Size = UDim2.new(1, 0, 0, Config.ControlHeight),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Parent = SectionFrame
+        Parent = ParentFrame
     })
     
     -- Label
@@ -711,15 +726,14 @@ function tabTable:_CreateDropdown(controlName, options, defaultValue, callback)
 end
 
 -- 6. Textbox
-function tabTable:_CreateTextbox(controlName, placeholder, defaultValue, callback)
-    local SectionFrame = self.Controls
+function ExoUI.Controls:_CreateTextbox(ParentFrame, controlName, placeholder, defaultValue, callback)
 
     local ControlFrame = Create("Frame", {
         Name = controlName:gsub("%s+", "_") .. "Control",
         Size = UDim2.new(1, 0, 0, Config.ControlHeight),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Parent = SectionFrame
+        Parent = ParentFrame
     })
 
     -- Label
@@ -764,11 +778,20 @@ function tabTable:_CreateTextbox(controlName, placeholder, defaultValue, callbac
         pcall(callback, TextBox.Text)
     end
     
+    -- Use FocusLost to commit the text, especially when enter is pressed
     TextBox.FocusLost:Connect(function(enterPressed)
         if enterPressed then
             onTextChange()
         end
     end)
+    
+    -- Also use TextChanged for real-time updates if needed, but FocusLost is usually better
+    TextBox.Changed:Connect(function(property)
+        if property == "Text" then
+            onTextChange()
+        end
+    end)
+
 
     -- Initial callback
     pcall(callback, defaultValue or "")
