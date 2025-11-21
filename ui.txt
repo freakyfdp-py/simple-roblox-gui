@@ -1,0 +1,214 @@
+local player = game.Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local CONTROL_HEIGHT = 40
+local CONTROL_WIDTH = 330
+local TAB_HEIGHT = 35
+local MIN_WIDTH = 300
+local MIN_HEIGHT = 200
+local RESIZE_HANDLE_SIZE = 15
+
+local LABEL_COLOR = Color3.fromRGB(180,180,255)
+local BACKGROUND_COLOR = Color3.fromRGB(30,30,45)
+local ACCENT_COLOR = Color3.fromRGB(80,140,255)
+local SUCCESS_COLOR = Color3.fromRGB(34,197,94)
+local OFF_COLOR = Color3.fromRGB(60,60,80)
+local TITLE_COLOR = Color3.fromRGB(45,45,65)
+local TAB_INACTIVE_COLOR = Color3.fromRGB(55,55,75)
+local TAB_ACTIVE_COLOR = ACCENT_COLOR
+
+local controlStates = {}
+local tabs = {}
+local currentTab = nil
+local blur = Instance.new("BlurEffect")
+local isMinimized = false
+local gui, outer, titleBar, contentArea, tabsFrame
+
+local isDragging, isResizing = false, false
+local dragStartPos, frameStartPos, frameStartSize = Vector2.new(), UDim2.new(), UDim2.new()
+
+local function createToastNotification(message,duration,color)
+    duration = duration or 3
+    color = color or ACCENT_COLOR
+    local toast = Instance.new("Frame")
+    toast.Size = UDim2.fromOffset(300,50)
+    toast.Position = UDim2.new(0.5,-150,1,10)
+    toast.BackgroundColor3 = color
+    toast.BorderSizePixel = 0
+    toast.ZIndex = 10
+    toast.Parent = PlayerGui
+    local toastCorner = Instance.new("UICorner")
+    toastCorner.CornerRadius = UDim.new(0,8)
+    toastCorner.Parent = toast
+    local toastLabel = Instance.new("TextLabel")
+    toastLabel.Size = UDim2.new(1,-20,1,-10)
+    toastLabel.Position = UDim2.new(0,10,0,5)
+    toastLabel.BackgroundTransparency = 1
+    toastLabel.Text = message
+    toastLabel.TextColor3 = Color3.new(1,1,1)
+    toastLabel.Font = Enum.Font.SourceSans
+    toastLabel.TextSize = 18
+    toastLabel.TextWrapped = true
+    toastLabel.Parent = toast
+    local infoShow = TweenInfo.new(0.5,Enum.EasingStyle.Quart,Enum.EasingDirection.Out)
+    local infoHide = TweenInfo.new(0.5,Enum.EasingStyle.Quart,Enum.EasingDirection.In)
+    TweenService:Create(toast,infoShow,{Position=UDim2.new(0.5,-150,1,-60)}):Play()
+    task.wait(duration)
+    local tweenHide = TweenService:Create(toast,infoHide,{Position=UDim2.new(0.5,-150,1,10), BackgroundTransparency=1})
+    tweenHide:Play()
+    tweenHide.Completed:Wait()
+    toast:Destroy()
+end
+
+local function updateCanvasSize(content)
+    local listLayout = content:FindFirstChildOfClass("UIListLayout")
+    if listLayout then
+        local h = listLayout.AbsoluteContentSize.Y
+        local v = content.AbsoluteSize.Y
+        content.CanvasSize = UDim2.new(0,0,0,math.max(h+20,v))
+    end
+end
+
+local function createTab(name)
+    if tabs[name] then return tabs[name].Content end
+    local tabButton = Instance.new("TextButton")
+    tabButton.Size = UDim2.new(0,CONTROL_WIDTH/2,1,0)
+    tabButton.Text = name
+    tabButton.BackgroundColor3 = TAB_INACTIVE_COLOR
+    tabButton.TextColor3 = Color3.new(1,1,1)
+    tabButton.Font = Enum.Font.SourceSansBold
+    tabButton.TextSize = 16
+    tabButton.BorderSizePixel = 0
+    tabButton.Parent = tabsFrame
+    local tabCorner = Instance.new("UICorner")
+    tabCorner.CornerRadius = UDim.new(0,5)
+    tabCorner.Parent = tabButton
+    local content = Instance.new("ScrollingFrame")
+    content.Size = UDim2.new(1,0,1,0)
+    content.Position = UDim2.new(0,0,0,0)
+    content.BackgroundTransparency = 1
+    content.CanvasSize = UDim2.new(0,0,0,0)
+    content.Visible = false
+    content.Parent = contentArea
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Padding = UDim.new(0,15)
+    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    listLayout.Parent = content
+    tabButton.MouseButton1Click:Connect(function()
+        for _,t in pairs(tabs) do
+            t.Button.BackgroundColor3 = TAB_INACTIVE_COLOR
+            t.Content.Visible = false
+        end
+        tabButton.BackgroundColor3 = TAB_ACTIVE_COLOR
+        content.Visible = true
+        currentTab = {Button=tabButton,Content=content}
+        updateCanvasSize(content)
+    end)
+    tabs[name] = {Button=tabButton,Content=content}
+    currentTab = {Button=tabButton,Content=content}
+    tabButton.BackgroundColor3 = TAB_ACTIVE_COLOR
+    content.Visible = true
+    return content
+end
+
+local function createCheckbox(parent,labelText,initial)
+    local c = Instance.new("Frame")
+    c.Size = UDim2.fromOffset(CONTROL_WIDTH,CONTROL_HEIGHT)
+    c.BackgroundTransparency = 1
+    c.Parent = parent
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1,-50,1,0)
+    label.BackgroundTransparency = 1
+    label.Text = labelText
+    label.TextColor3 = LABEL_COLOR
+    label.Font = Enum.Font.SourceSans
+    label.TextSize = 18
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = c
+    local box = Instance.new("TextButton")
+    box.Size = UDim2.fromOffset(30,30)
+    box.Position = UDim2.new(1,-30,0,5)
+    box.Text = ""
+    box.BorderSizePixel = 0
+    box.Parent = c
+    local cc = Instance.new("UICorner")
+    cc.CornerRadius = UDim.new(0,5)
+    cc.Parent = box
+    local state = initial or false
+    local function update()
+        if state then
+            box.BackgroundColor3 = SUCCESS_COLOR
+            box.Text = "✓"
+            box.TextSize = 25
+            box.TextColor3 = Color3.new(1,1,1)
+        else
+            box.BackgroundColor3 = OFF_COLOR
+            box.Text = ""
+        end
+        controlStates[labelText].State = state
+    end
+    box.MouseButton1Click:Connect(function()
+        state = not state
+        update()
+    end)
+    controlStates[labelText]={Type="Checkbox",State=state,Instance=box}
+    updateCanvasSize(parent)
+    return c
+end
+
+local function initializeGUI()
+    gui = Instance.new("ScreenGui")
+    gui.Name = "ModularMenu"
+    gui.Parent = PlayerGui
+    blur.Size = 15
+    blur.Parent = game.Lighting
+    outer = Instance.new("Frame")
+    outer.Size=UDim2.fromOffset(350,600)
+    outer.Position=UDim2.new(0.5,-175,0.5,-300)
+    outer.BackgroundColor3=BACKGROUND_COLOR
+    outer.BorderSizePixel=0
+    outer.ZIndex=1
+    outer.Parent=gui
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0,10)
+    corner.Parent=outer
+    titleBar = Instance.new("Frame")
+    titleBar.Size=UDim2.new(1,0,0,40)
+    titleBar.BackgroundColor3=TITLE_COLOR
+    titleBar.Parent=outer
+    local titleLabel=Instance.new("TextLabel")
+    titleLabel.Size=UDim2.new(1,0,1,0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "🌟 Exploit Controls Pro"
+    titleLabel.TextColor3 = Color3.new(1,1,1)
+    titleLabel.Font = Enum.Font.SourceSansBold
+    titleLabel.TextSize = 20
+    titleLabel.Parent = titleBar
+    tabsFrame = Instance.new("Frame")
+    tabsFrame.Size=UDim2.new(1,-20,0,TAB_HEIGHT)
+    tabsFrame.Position=UDim2.new(0,10,0,40)
+    tabsFrame.BackgroundTransparency=1
+    tabsFrame.Parent=outer
+    local tll=Instance.new("UIListLayout")
+    tll.FillDirection=Enum.FillDirection.Horizontal
+    tll.Padding=UDim.new(0,5)
+    tll.HorizontalAlignment=Enum.HorizontalAlignment.Left
+    tll.Parent=tabsFrame
+    contentArea = Instance.new("Frame")
+    contentArea.Size=UDim2.new(1,-20,1,-(40+TAB_HEIGHT+20))
+    contentArea.Position=UDim2.new(0,10,0,40+TAB_HEIGHT+10)
+    contentArea.BackgroundTransparency=1
+    contentArea.ClipsDescendants=true
+    contentArea.Parent=outer
+end
+
+initializeGUI()
+
+local ModularMenu = {createTab=createTab,createCheckbox=createCheckbox,createToastNotification=createToastNotification,getControlValue=function(n)
+    local s=controlStates[n]
+    return s and s.State or nil
+end}
+
+return ModularMenu
