@@ -1,6 +1,5 @@
 -- This is the complete, self-contained, image-free library code.
--- This version fixes the layout issue in the header so the Close (X) and Minimize (-) buttons are visible.
--- It also includes the RightShift keybind to toggle the menu visibility.
+-- It is designed to be executed via loadstring/HttpGet and return the ExoUI table.
 
 -- Core Roblox Services
 local Players = game:GetService("Players")
@@ -43,7 +42,11 @@ local function Create(ClassName, Properties)
 end
 
 -- =================================================================
--- UI Creation Functions
+-- UI Creation Functions (Init, Tab, Section, Controls)
+-- [Note: Full implementation details are omitted here for brevity, 
+-- but this file MUST contain the complete, functional code for 
+-- ExoUI:Init, ExoUI:CreateTab, and the Control functions 
+-- (_CreateCheckbox, _CreateSlider, etc.) to compile and run.]
 -- =================================================================
 
 -- 1. Main UI and Drag Logic
@@ -88,7 +91,6 @@ function ExoUI:Init(Title)
     local ControlsContainer = Create("Frame", {
         Name = "ControlsContainer",
         Size = UDim2.new(0, 70, 1, 0), -- Enough width for two buttons + padding
-        -- Positioned 10px from the right edge
         Position = UDim2.new(1, -Config.Padding, 0, 0), 
         BackgroundTransparency = 1,
         Parent = HeaderFrame
@@ -105,7 +107,6 @@ function ExoUI:Init(Title)
     })
     
     -- Header Text 
-    -- FIX: Adjusted width to reserve 85 pixels for padding and controls (10px + 70px + 5px extra safety)
     Create("TextLabel", {
         Name = "TitleLabel",
         Size = UDim2.new(1, -85, 1, 0), 
@@ -122,7 +123,7 @@ function ExoUI:Init(Title)
     -- === 1. Minimize Button (-) ===
     local MinimizeButton = Create("TextButton", {
         Name = "MinimizeButton",
-        Text = "—", -- En dash/Hyphen for minimize
+        Text = "—", 
         Size = UDim2.new(0, 30, 0, 25),
         BackgroundColor3 = Config.PrimaryColor,
         TextColor3 = Config.TextColor,
@@ -184,30 +185,18 @@ function ExoUI:Init(Title)
     -- Dragging Logic
     local function StartDrag(input, gameProcessedEvent)
         if gameProcessedEvent then return end
-        
-        -- Only allow drag on MouseButton1 or Touch
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             IsDragging = true
             CurrentDraggableFrame = MainFrame
-            
-            -- FIX: InputObject.Position is Vector3. Convert to Vector2 for screen position math.
             local inputPosition = Vector2.new(input.Position.X, input.Position.Y) 
-            
             DragOffset = inputPosition - MainFrame.Position.Offset
-            
-            -- Removed: input.Capture = true (due to error message)
         end
     end
 
     local function DoDrag(input)
-        -- Check if we are dragging and the input type is a movement action
         if IsDragging and CurrentDraggableFrame and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            
-            -- FIX: InputObject.Position is Vector3. Convert to Vector2.
             local inputPosition = Vector2.new(input.Position.X, input.Position.Y)
-            
             local newPosition = inputPosition - DragOffset
-            -- Set the frame's position using UDim2 with the calculated pixel offset
             CurrentDraggableFrame.Position = UDim2.new(0, newPosition.X, 0, newPosition.Y)
         end
     end
@@ -221,7 +210,6 @@ function ExoUI:Init(Title)
     end
 
     HeaderFrame.InputBegan:Connect(StartDrag)
-    -- Connect to UserInputService.InputChanged so drag continues even outside the HeaderFrame bounds
     UserInputService.InputChanged:Connect(DoDrag)
     UserInputService.InputEnded:Connect(EndDrag)
 
@@ -264,7 +252,6 @@ function ExoUI:Init(Title)
         Parent = ContentContainer
     })
 
-    -- Add a property to the module to hold the main containers
     ExoUI.Containers = {
         MainFrame = MainFrame,
         TabContainer = TabContainer,
@@ -322,11 +309,9 @@ function ExoUI:CreateTab(Name, IsDefault)
         -- Hide all other content frames
         for _, tab in pairs(ExoUI.Tabs) do
             tab.Content.Visible = false
-            -- Reset button appearance
             tab.Button.BackgroundColor3 = Config.PrimaryColor
             
-            -- Crucial: Close any open dropdowns when switching tabs
-            -- This relies on the convention that dropdown options are parented to ScreenGui
+            -- Close any open dropdowns when switching tabs
             if ScreenGui then
                 for _, child in ipairs(ScreenGui:GetChildren()) do
                     if child.Name == "DropdownOptionsContainer" then
@@ -348,7 +333,6 @@ function ExoUI:CreateTab(Name, IsDefault)
     if IsDefault then
         SelectTab()
     elseif not ExoUI.CurrentTabContent then
-        -- If no default is set, set the first tab as visible
         TabContent.Visible = true
         TabButton.BackgroundColor3 = Config.AccentColor
         ExoUI.CurrentTabContent = TabContent
@@ -407,14 +391,11 @@ function ExoUI:CreateTab(Name, IsDefault)
         })
         
         -- Automatic sizing based on content
-        -- This property change listener is the robust way to auto-resize
         ControlsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
             SectionFrame.Size = UDim2.new(1, 0, 0, ControlsLayout.AbsoluteContentSize.Y + TitleLabel.Size.Y.Offset)
         end)
         
-        -- Initial size update
         SectionFrame.Size = UDim2.new(1, 0, 0, ControlsLayout.AbsoluteContentSize.Y + TitleLabel.Size.Y.Offset)
-
 
         local sectionTable = {
             Name = sectionName,
@@ -650,7 +631,6 @@ function ExoUI.Controls:_CreateSlider(ParentFrame, controlName, min, max, defaul
         if gameProcessedEvent then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             IsDraggingSlider = true
-            -- FIX: InputObject.Position is Vector3. Convert to Vector2 for screen position math.
             local inputPosition = Vector2.new(input.Position.X, input.Position.Y)
             updateValue(inputPosition)
         end
@@ -658,7 +638,6 @@ function ExoUI.Controls:_CreateSlider(ParentFrame, controlName, min, max, defaul
     
     local function DoDragSlider(input)
         if IsDraggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            -- FIX: InputObject.Position is Vector3. Convert to Vector2.
             local inputPosition = Vector2.new(input.Position.X, input.Position.Y)
             updateValue(inputPosition)
         end
@@ -733,17 +712,15 @@ function ExoUI.Controls:_CreateDropdown(ParentFrame, controlName, options, defau
     
     -- Options Container setup function
     local function createOptionsContainer()
-        -- Use a unique name to easily find and destroy later
         OptionsContainer = Create("Frame", {
             Name = "DropdownOptionsContainer",
-            -- Size will be set dynamically on open
             Size = UDim2.new(0, 0, 0, 0), 
             Position = UDim2.new(0, 0, 0, 0),
             AnchorPoint = Vector2.new(0, 0),
             BackgroundColor3 = Config.PrimaryColor,
             BorderSizePixel = 0,
             Visible = false,
-            ZIndex = 5, -- High ZIndex to ensure it is on top
+            ZIndex = 5, 
             Parent = ScreenGui -- <-- **Parented to ScreenGui for overlay**
         })
         
@@ -806,7 +783,6 @@ function ExoUI.Controls:_CreateDropdown(ParentFrame, controlName, options, defau
         return OptionsLayout
     end
     
-    -- Create the container and get the layout for size monitoring
     local OptionsLayout = createOptionsContainer()
 
 
@@ -823,15 +799,11 @@ function ExoUI.Controls:_CreateDropdown(ParentFrame, controlName, options, defau
         OptionsContainer.Visible = not OptionsContainer.Visible
         
         if OptionsContainer.Visible then
-            -- Calculate absolute position and size of the button
             local absPos = DropdownButton.AbsolutePosition
             local absSize = DropdownButton.AbsoluteSize
             
-            -- Set the width and height based on the button and content
             OptionsContainer.Size = UDim2.new(0, absSize.X, 0, OptionsLayout.AbsoluteContentSize.Y)
-            
-            -- Position the container just below the button
-            OptionsContainer.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 1) -- +1 for a small gap
+            OptionsContainer.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 1)
         end
     end
     
@@ -839,7 +811,7 @@ function ExoUI.Controls:_CreateDropdown(ParentFrame, controlName, options, defau
     local closeConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
         if not gameProcessedEvent and OptionsContainer.Visible then
             local mousePos = Vector2.new(input.Position.X, input.Position.Y)
-            -- Check if the click is outside the button and the options container
+            -- Simple check if the click is outside
             local isOverButton = DropdownButton:GetAbsolutePosition().X <= mousePos.X and mousePos.X <= DropdownButton:GetAbsolutePosition().X + DropdownButton.AbsoluteSize.X and
                                  DropdownButton:GetAbsolutePosition().Y <= mousePos.Y and mousePos.Y <= DropdownButton:GetAbsolutePosition().Y + DropdownButton.AbsoluteSize.Y
             
@@ -920,7 +892,7 @@ function ExoUI.Controls:_CreateTextbox(ParentFrame, controlName, placeholder, de
         end
     end)
     
-    -- Also use TextChanged for real-time updates if needed, but FocusLost is usually better
+    -- Also use TextChanged for real-time updates if needed
     TextBox.Changed:Connect(function(property)
         if property == "Text" then
             onTextChange()
@@ -933,6 +905,9 @@ function ExoUI.Controls:_CreateTextbox(ParentFrame, controlName, placeholder, de
 
     return ControlFrame
 end
+
+-- Create the Controls table (needed for the section methods)
+ExoUI.Controls = {}
 
 -- Return the main module table
 return ExoUI
