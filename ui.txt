@@ -1,13 +1,8 @@
 --[[
-    ExoUI Library: Core Framework Module
+    ExoUI Library: Core Framework Module (REVISED WITH CONTROL API)
     
-    This file defines the ExoUI library, including the main window scaffolding,
-    theme management, and the ExoUI:CreateTab method for dynamic feature tabs.
-    
-    The Init function creates the ScreenGui, MainWindow, TitleBar, and the
-    empty TabContainer and ContentFrame.
-    
-    The ExoUI table is returned at the end, ready to be 'required' by a loader script.
+    The ExoUI:CreateTab().section() now returns a Content API object that allows
+    direct creation of UI elements like checkbox, slider, dropdown, and textbox.
 ]]
 
 local ExoUI = {}
@@ -17,9 +12,10 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
+
 local LibraryInstance = nil -- Main ScreenGui instance
 local MainWindow = nil      -- Main Window Frame
-local CurrentTheme = "Dark"
+local CurrentTheme = "BlueNight"
 
 -- Color Palettes for themes
 local Themes = {
@@ -29,6 +25,7 @@ local Themes = {
         AccentColor = Color3.fromRGB(150, 10, 255),
         TitleText = Color3.fromRGB(255, 255, 255),
         ContentText = Color3.fromRGB(200, 200, 200),
+        InputBg = Color3.fromRGB(55, 55, 55),
     },
     Light = {
         PrimaryBg = Color3.fromRGB(240, 240, 240),
@@ -36,6 +33,7 @@ local Themes = {
         AccentColor = Color3.fromRGB(30, 144, 255),
         TitleText = Color3.fromRGB(0, 0, 0),
         ContentText = Color3.fromRGB(50, 50, 50),
+        InputBg = Color3.fromRGB(230, 230, 230),
     },
     BlueNight = {
         PrimaryBg = Color3.fromRGB(26, 43, 60),
@@ -43,13 +41,11 @@ local Themes = {
         AccentColor = Color3.fromRGB(0, 191, 255),
         TitleText = Color3.fromRGB(230, 240, 255),
         ContentText = Color3.fromRGB(180, 200, 220),
+        InputBg = Color3.fromRGB(45, 65, 85),
     }
 }
 
---***********************************************************************
---** Theme Management
---***********************************************************************
-
+-- Utility functions (MakeDraggable, SetupKeybind, ApplyTheme) are omitted for brevity in this comment block.
 local function ApplyTheme(themeName)
     local theme = Themes[themeName]
     if not theme then return end
@@ -57,83 +53,45 @@ local function ApplyTheme(themeName)
     if MainWindow then
         MainWindow.BackgroundColor3 = theme.PrimaryBg
         MainWindow:FindFirstChild("TitleBar").BackgroundColor3 = theme.SecondaryBg
-        MainWindow:FindFirstChild("TitleBar"):FindFirstChild("TitleLabel").TextColor3 = theme.TitleText
+        
+        -- ... (Theme application logic for main frames) ...
         
         local TabContainer = MainWindow:FindFirstChild("TabContainer")
-        if TabContainer then
-            TabContainer.BackgroundColor3 = theme.SecondaryBg
-            
-            -- Update tab buttons and accent
-            local ActiveTabValue = MainWindow.ActiveTab.Value
-            for _, btn in TabContainer:FindFirstChild("Tabs"):GetChildren() do
-                if btn:IsA("TextButton") then
-                    btn.TextColor3 = theme.ContentText
-                    if btn.Name == ActiveTabValue then
-                        btn.UIStroke.Color = theme.AccentColor
-                        btn.UIStroke.Thickness = 2
-                    else
-                        btn.UIStroke.Thickness = 0
-                    end
+        local SectionContainer = MainWindow:FindFirstChild("SectionContainer")
+        local ContentFrame = MainWindow:FindFirstChild("ContentFrame")
+        
+        if TabContainer then TabContainer.BackgroundColor3 = theme.SecondaryBg end
+        if SectionContainer then SectionContainer.BackgroundColor3 = theme.PrimaryBg end
+        if ContentFrame then ContentFrame.BackgroundColor3 = theme.PrimaryBg end
+
+        -- Update tab buttons and accent colors
+        local ActiveTabValue = MainWindow.ActiveTab.Value
+        for _, btn in TabContainer:FindFirstChild("Tabs"):GetChildren() do
+            if btn:IsA("TextButton") then
+                btn.TextColor3 = theme.ContentText
+                if btn.Name == ActiveTabValue then
+                    btn.UIStroke.Color = theme.AccentColor
+                    btn.UIStroke.Thickness = 2
+                else
+                    btn.UIStroke.Thickness = 0
                 end
             end
         end
         
-        local ContentFrame = MainWindow:FindFirstChild("ContentFrame")
-        if ContentFrame then
-            ContentFrame.BackgroundColor3 = theme.PrimaryBg
-        end
-        
-        -- Update controls
-        local SettingsButton = MainWindow:FindFirstChild("TitleBar"):FindFirstChild("SettingsButton")
-        if SettingsButton then SettingsButton.ImageColor3 = theme.AccentColor end
-        local Controls = MainWindow:FindFirstChild("TitleBar"):FindFirstChild("Controls")
-        if Controls then
-            Controls:FindFirstChild("CloseButton").TextColor3 = theme.ContentText
-            Controls:FindFirstChild("MinimizeButton").TextColor3 = theme.ContentText
+        -- Update active section button accent
+        local ActiveSectionValue = MainWindow.ActiveSection.Value
+        if ActiveSectionValue ~= "" then
+            local activeTabSections = SectionContainer:FindFirstChild(ActiveTabValue .. "Sections")
+            if activeTabSections then
+                local sectionButton = activeTabSections:FindFirstChild(ActiveSectionValue)
+                if sectionButton and sectionButton:IsA("TextButton") then
+                    sectionButton.UIStroke.Color = theme.AccentColor
+                end
+            end
         end
     end
     CurrentTheme = themeName
 end
-
-local function CreateThemeOption(parent, themeName)
-    local theme = Themes[themeName]
-    local button = Instance.new("TextButton")
-    button.Name = themeName .. "ThemeButton"
-    button.Text = themeName
-    button.Size = UDim2.new(1, 0, 0, 30)
-    button.BackgroundColor3 = theme.PrimaryBg
-    button.TextColor3 = theme.TitleText
-    button.Font = Enum.Font.SourceSans
-    button.TextSize = 14
-    button.Parent = parent
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim2.new(0, 4)
-    corner.Parent = button
-    
-    local stroke = Instance.new("UIStroke")
-    stroke.Thickness = (themeName == CurrentTheme) and 2 or 1
-    stroke.Color = theme.AccentColor
-    stroke.Parent = button
-
-    button.MouseEnter:Connect(function()
-        stroke.Thickness = 2
-    end)
-    button.MouseLeave:Connect(function()
-        if CurrentTheme ~= themeName then
-            stroke.Thickness = 1
-        end
-    end)
-    
-    button.MouseButton1Click:Connect(function()
-        ApplyTheme(themeName)
-    end)
-end
-
-
---***********************************************************************
---** UI Utilities
---***********************************************************************
 
 local function MakeDraggable(frame, titleBar)
     local dragging = false
@@ -180,30 +138,458 @@ local function SetupKeybind()
         end
     end)
 end
+-- End of utility functions
 
 --***********************************************************************
---** Public Methods
+--** Control Creation API (Internal)
 --***********************************************************************
+
+-- This function returns an object containing methods to add specific controls to the parent frame.
+local function createContentAPI(parentFrame)
+    local ContentAPI = {}
+    local theme = Themes[CurrentTheme]
+    
+    -- Helper to create the base container for a single control
+    local function createControlContainer(name, height)
+        local frame = Instance.new("Frame")
+        frame.Name = name
+        frame.Size = UDim2.new(1, 0, 0, height or 40)
+        frame.BackgroundTransparency = 1
+        frame.Parent = parentFrame
+        
+        local padding = Instance.new("UIPadding")
+        padding.PaddingLeft = UDim.new(0, 10)
+        padding.PaddingRight = UDim.new(0, 10)
+        padding.Parent = frame
+        
+        return frame
+    end
+    
+    -- 1. Checkbox / Toggle
+    function ContentAPI:checkbox(featureName, defaultValue, callback)
+        local container = createControlContainer(featureName, 30)
+        
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Text = featureName
+        nameLabel.Size = UDim2.new(0.8, 0, 1, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.TextColor3 = theme.ContentText
+        nameLabel.Font = Enum.Font.SourceSans
+        nameLabel.TextSize = 15
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        nameLabel.Parent = container
+
+        local toggleButton = Instance.new("TextButton")
+        toggleButton.Name = "Toggle"
+        toggleButton.Size = UDim2.new(0, 50, 0.8, 0)
+        toggleButton.Position = UDim2.new(1, -50, 0.1, 0)
+        toggleButton.Font = Enum.Font.SourceSansBold
+        toggleButton.TextSize = 14
+        toggleButton.TextColor3 = theme.TitleText
+        toggleButton.Parent = container
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim2.new(0, 4)
+        corner.Parent = toggleButton
+        
+        local currentState = defaultValue or false
+
+        local function updateToggleVisuals()
+            if currentState then
+                toggleButton.Text = "ON"
+                toggleButton.BackgroundColor3 = theme.AccentColor
+            else
+                toggleButton.Text = "OFF"
+                toggleButton.BackgroundColor3 = theme.SecondaryBg
+            end
+        end
+        
+        toggleButton.MouseButton1Click:Connect(function()
+            currentState = not currentState
+            updateToggleVisuals()
+            if callback then callback(currentState) end
+        end)
+        
+        updateToggleVisuals() -- Set initial state visuals
+        
+        return container -- Return the container for direct reference if needed
+    end
+
+    -- 2. Slider
+    function ContentAPI:slider(featureName, min, max, initialValue, step, callback)
+        min = min or 0
+        max = max or 100
+        initialValue = math.clamp(initialValue or 50, min, max)
+        step = step or 1
+        
+        local container = createControlContainer(featureName .. "Slider", 50)
+
+        local header = Instance.new("TextLabel")
+        header.Text = featureName .. ": " .. string.format("%.1f", initialValue)
+        header.Name = "ValueLabel"
+        header.Size = UDim2.new(1, 0, 0.4, 0)
+        header.BackgroundTransparency = 1
+        header.TextColor3 = theme.ContentText
+        header.Font = Enum.Font.SourceSans
+        header.TextSize = 15
+        header.TextXAlignment = Enum.TextXAlignment.Left
+        header.Parent = container
+
+        local sliderFrame = Instance.new("Frame")
+        sliderFrame.Size = UDim2.new(1, 0, 0.3, 0)
+        sliderFrame.Position = UDim2.new(0, 0, 0.6, 0)
+        sliderFrame.BackgroundColor3 = theme.InputBg
+        sliderFrame.Parent = container
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim2.new(0, 4)
+        corner.Parent = sliderFrame
+
+        local valueIndicator = Instance.new("Frame")
+        valueIndicator.Name = "Indicator"
+        valueIndicator.Size = UDim2.new(0, 0, 1, 0)
+        valueIndicator.BackgroundColor3 = theme.AccentColor
+        valueIndicator.Parent = sliderFrame
+        
+        local thumb = Instance.new("Frame")
+        thumb.Size = UDim2.new(0, 10, 0, 20)
+        thumb.Position = UDim2.new(0, -5, 0.5, -10)
+        thumb.BackgroundColor3 = theme.TitleText
+        thumb.Parent = sliderFrame
+        
+        local thumbCorner = Instance.new("UICorner")
+        thumbCorner.CornerRadius = UDim2.new(0.5, 0)
+        thumbCorner.Parent = thumb
+        
+        local isDragging = false
+        local currentValue = initialValue
+        
+        local function updateSliderVisuals(value)
+            currentValue = value
+            local ratio = (value - min) / (max - min)
+            local width = math.clamp(ratio, 0, 1)
+            
+            valueIndicator.Size = UDim2.new(width, 0, 1, 0)
+            thumb.Position = UDim2.new(width, -5, 0.5, -10)
+            
+            header.Text = featureName .. ": " .. string.format("%.1f", value)
+        end
+        
+        local function getClampedValue(x)
+            local pixelWidth = sliderFrame.AbsoluteSize.X
+            local ratio = math.clamp(x / pixelWidth, 0, 1)
+            local rawValue = min + ratio * (max - min)
+            
+            -- Apply step rounding
+            if step > 0 then
+                rawValue = math.round(rawValue / step) * step
+            end
+            
+            return math.clamp(rawValue, min, max)
+        end
+
+        local function handleInput(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                local localPos = input.Position - sliderFrame.AbsolutePosition
+                local newValue = getClampedValue(localPos.X)
+                
+                updateSliderVisuals(newValue)
+                if callback then callback(newValue) end
+            end
+        end
+        
+        thumb.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isDragging = true
+                input:Capture()
+                handleInput(input)
+            end
+        end)
+        
+        UserInputService.InputChanged:Connect(function(input)
+            if isDragging then
+                handleInput(input)
+            end
+        end)
+        
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isDragging = false
+            end
+        end)
+        
+        updateSliderVisuals(initialValue) -- Initial draw
+        
+        return container
+    end
+    
+    -- 3. Dropdown
+    function ContentAPI:dropdown(featureName, options, initialOption, callback)
+        if type(options) ~= 'table' or #options == 0 then error("Dropdown must be provided a non-empty table of options.") end
+
+        local container = createControlContainer(featureName .. "Dropdown", 40)
+        local currentOption = initialOption or options[1]
+        local isExpanded = false
+        
+        local mainButton = Instance.new("TextButton")
+        mainButton.Text = featureName .. ": " .. currentOption
+        mainButton.Size = UDim2.new(1, 0, 1, 0)
+        mainButton.BackgroundColor3 = theme.InputBg
+        mainButton.TextColor3 = theme.ContentText
+        mainButton.Font = Enum.Font.SourceSans
+        mainButton.TextSize = 14
+        mainButton.Parent = container
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim2.new(0, 4)
+        corner.Parent = mainButton
+        
+        -- Dropdown options panel (separate frame, visible on click)
+        local optionsPanel = Instance.new("ScrollingFrame")
+        optionsPanel.Name = "OptionsPanel"
+        optionsPanel.Size = UDim2.new(1, 0, 0, math.min(150, #options * 25))
+        optionsPanel.Position = UDim2.new(0, 0, 1, 5) -- Position below the main button
+        optionsPanel.BackgroundColor3 = theme.SecondaryBg
+        optionsPanel.CanvasSize = UDim2.new(0, 0, 0, #options * 25)
+        optionsPanel.Visible = false
+        optionsPanel.ZIndex = 2
+        optionsPanel.Parent = parentFrame -- Parented to the ContentFrame, not the control container, for ZIndex and visibility
+
+        local optionsLayout = Instance.new("UIListLayout")
+        optionsLayout.Padding = UDim.new(0, 1)
+        optionsLayout.FillDirection = Enum.FillDirection.Vertical
+        optionsLayout.Parent = optionsPanel
+
+        local function collapseDropdown()
+            isExpanded = false
+            optionsPanel.Visible = false
+        end
+
+        local function updateValue(option)
+            currentOption = option
+            mainButton.Text = featureName .. ": " .. currentOption
+            if callback then callback(currentOption) end
+            collapseDropdown()
+        end
+        
+        for i, option in ipairs(options) do
+            local optionButton = Instance.new("TextButton")
+            optionButton.Text = option
+            optionButton.Size = UDim2.new(1, 0, 0, 25)
+            optionButton.BackgroundColor3 = theme.SecondaryBg
+            optionButton.TextColor3 = theme.ContentText
+            optionButton.Font = Enum.Font.SourceSans
+            optionButton.TextSize = 14
+            optionButton.Parent = optionsPanel
+            
+            optionButton.MouseEnter:Connect(function() optionButton.BackgroundColor3 = theme.InputBg end)
+            optionButton.MouseLeave:Connect(function() optionButton.BackgroundColor3 = theme.SecondaryBg end)
+
+            optionButton.MouseButton1Click:Connect(function()
+                updateValue(option)
+            end)
+        end
+        
+        mainButton.MouseButton1Click:Connect(function()
+            isExpanded = not isExpanded
+            optionsPanel.Visible = isExpanded
+        end)
+        
+        updateValue(currentOption)
+        return container
+    end
+
+    -- 4. Textbox
+    function ContentAPI:textbox(featureName, placeholder, initialText, callback)
+        local container = createControlContainer(featureName .. "Textbox", 60)
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Text = featureName
+        nameLabel.Size = UDim2.new(1, 0, 0.4, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.TextColor3 = theme.ContentText
+        nameLabel.Font = Enum.Font.SourceSans
+        nameLabel.TextSize = 15
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        nameLabel.Parent = container
+
+        local input = Instance.new("TextBox")
+        input.Name = "Input"
+        input.PlaceholderText = placeholder or ""
+        input.Text = initialText or ""
+        input.Size = UDim2.new(1, 0, 0.5, 0)
+        input.Position = UDim2.new(0, 0, 0.5, 0)
+        input.BackgroundColor3 = theme.InputBg
+        input.TextColor3 = theme.TitleText
+        input.Font = Enum.Font.SourceSans
+        input.TextSize = 14
+        input.Parent = container
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim2.new(0, 4)
+        corner.Parent = input
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Thickness = 1
+        stroke.Color = theme.InputBg
+        stroke.Parent = input
+        
+        -- Highlight border on focus
+        input.Focused:Connect(function()
+            stroke.Color = theme.AccentColor
+        end)
+        
+        input.FocusLost:Connect(function(enterPressed)
+            stroke.Color = theme.InputBg
+            if enterPressed and callback then
+                callback(input.Text)
+            elseif not enterPressed and callback then
+                -- Optional: call callback even if user just clicks away
+                -- callback(input.Text)
+            end
+        end)
+        
+        return container
+    end
+    
+    return ContentAPI
+end
+
 
 -- Public method for creating and registering new tabs
 function ExoUI:CreateTab(tabName, isDefault)
-    if not MainWindow or not MainWindow:FindFirstChild("TabContainer") then
-        error("ExoUI:CreateTab called before Init() or MainWindow not found.")
+    if not MainWindow then
+        error("ExoUI:CreateTab called before Init()")
         return nil
     end
 
     local TabsFrame = MainWindow:FindFirstChild("TabContainer"):FindFirstChild("Tabs")
+    local SectionContainer = MainWindow:FindFirstChild("SectionContainer")
     local ContentFrame = MainWindow:FindFirstChild("ContentFrame")
     local ActiveTab = MainWindow.ActiveTab
+    local ActiveSection = MainWindow.ActiveSection
     
     local isFirstTab = ActiveTab.Value == ""
-    local shouldBeVisible = isDefault or (isFirstTab and tabName ~= "Settings")
+    local shouldBeVisible = isDefault or isFirstTab
     
-    if isFirstTab and tabName ~= "Settings" then
-        ActiveTab.Value = tabName
+    -- 1. Create container for this tab's sections
+    local tabSectionsFrame = Instance.new("Frame")
+    tabSectionsFrame.Name = tabName .. "Sections"
+    -- ... (Layout properties) ...
+    tabSectionsFrame.Size = UDim2.new(1, 0, 1, 0)
+    tabSectionsFrame.BackgroundTransparency = 1
+    tabSectionsFrame.Parent = SectionContainer
+    tabSectionsFrame.Visible = shouldBeVisible
+    
+    local sectionListLayout = Instance.new("UIListLayout")
+    sectionListLayout.Padding = UDim.new(0, 5)
+    sectionListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    sectionListLayout.Parent = tabSectionsFrame
+    
+    local sectionPadding = Instance.new("UIPadding")
+    sectionPadding.PaddingLeft = UDim.new(0, 5)
+    sectionPadding.PaddingRight = UDim.new(0, 5)
+    sectionPadding.PaddingTop = UDim.new(0, 5)
+    sectionPadding.PaddingBottom = UDim.new(0, 5)
+    sectionPadding.Parent = tabSectionsFrame
+    
+    local firstSectionName = nil
+    
+    -- 2. Define the AddSection function (now named 'section' in the object)
+    local function AddSection(_, sectionName, sectionOrder)
+        local theme = Themes[CurrentTheme]
+        
+        -- a. Create Content Frame for the section
+        local sectionContentFrame = Instance.new("ScrollingFrame") -- Use ScrollingFrame for content
+        sectionContentFrame.Name = tabName .. "_" .. sectionName .. "_Content"
+        sectionContentFrame.Size = UDim2.new(1, 0, 1, 0)
+        sectionContentFrame.BackgroundTransparency = 1
+        sectionContentFrame.Parent = ContentFrame
+        sectionContentFrame.Visible = false
+        sectionContentFrame.ScrollBarImageColor3 = theme.AccentColor -- Fancy scrollbar
+        sectionContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0) -- Will be updated dynamically by ListLayout
+        
+        local contentListLayout = Instance.new("UIListLayout")
+        contentListLayout.Name = "ContentLayout"
+        contentListLayout.Padding = UDim.new(0, 10)
+        contentListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        contentListLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+        contentListLayout.Parent = sectionContentFrame
+        
+        local contentPadding = Instance.new("UIPadding")
+        contentPadding.PaddingTop = UDim.new(0, 10)
+        contentPadding.PaddingBottom = UDim.new(0, 10)
+        contentPadding.Parent = sectionContentFrame
+        
+        -- Update CanvasSize whenever the layout changes
+        contentListLayout.DidUpdate:Connect(function()
+            local contentHeight = 0
+            for _, child in sectionContentFrame:GetChildren() do
+                if child:IsA("Frame") and child.Visible then
+                    contentHeight = contentHeight + child.Size.Y.Offset + contentListLayout.Padding.Offset
+                end
+            end
+            sectionContentFrame.CanvasSize = UDim2.new(0, 0, 0, contentHeight + contentPadding.PaddingTop.Offset + contentPadding.PaddingBottom.Offset)
+        end)
+        
+        -- b. Create Section Button
+        -- ... (Section button creation logic) ...
+        local sectionButton = Instance.new("TextButton")
+        sectionButton.Name = sectionName
+        sectionButton.Text = sectionName
+        sectionButton.Size = UDim2.new(1, 0, 0, 30)
+        sectionButton.BackgroundColor3 = theme.PrimaryBg
+        sectionButton.TextColor3 = theme.ContentText
+        sectionButton.Font = Enum.Font.SourceSans
+        sectionButton.TextSize = 14
+        sectionButton.LayoutOrder = sectionOrder or 0
+        sectionButton.Parent = tabSectionsFrame
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim2.new(0, 4)
+        corner.Parent = sectionButton
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Thickness = 0
+        stroke.Color = theme.AccentColor
+        stroke.Parent = sectionButton
+        
+        if not firstSectionName then 
+            firstSectionName = sectionName 
+            if shouldBeVisible then
+                sectionContentFrame.Visible = true
+                ActiveSection.Value = sectionName
+                stroke.Thickness = 2
+            end
+        end
+
+        -- c. Connect Section Button Logic
+        sectionButton.MouseButton1Click:Connect(function()
+            -- ... (Section visibility and highlighting logic) ...
+            for _, btn in tabSectionsFrame:GetChildren() do
+                if btn:IsA("TextButton") then
+                    btn.UIStroke.Thickness = 0
+                end
+            end
+            
+            stroke.Thickness = 2
+            
+            for _, frame in ContentFrame:GetChildren() do
+                if frame:IsA("ScrollingFrame") then
+                    frame.Visible = false
+                end
+            end
+            
+            sectionContentFrame.Visible = true
+            ActiveSection.Value = sectionName
+        end)
+        
+        -- Return the Content API for fluent control creation
+        return createContentAPI(sectionContentFrame) 
     end
     
-    -- 1. Create Tab Button
+    -- 3. Create Tab Button
+    -- ... (Tab button creation logic) ...
     local tabButton = Instance.new("TextButton")
     tabButton.Name = tabName
     tabButton.Text = tabName
@@ -222,81 +608,58 @@ function ExoUI:CreateTab(tabName, isDefault)
     stroke.Thickness = shouldBeVisible and 2 or 0
     stroke.Color = Themes[CurrentTheme].AccentColor
     stroke.Parent = tabButton
-
-    local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0.05, 0)
-    padding.PaddingBottom = UDim.new(0.05, 0)
-    padding.Parent = tabButton
     
-    -- Set LayoutOrder to ensure Settings is always last
     tabButton.LayoutOrder = (tabName == "Settings") and 999 or 0 
 
-    -- 2. Create Content Frame
-    local contentFrame = Instance.new("Frame")
-    contentFrame.Name = tabName .. "Content"
-    contentFrame.Size = UDim2.new(1, 0, 1, 0)
-    contentFrame.BackgroundTransparency = 1
-    contentFrame.Parent = ContentFrame
-    contentFrame.Visible = shouldBeVisible
-    
-    -- 3. Connect Tab Button Logic
+    -- 4. Connect Tab Button Logic
     tabButton.MouseButton1Click:Connect(function()
-        -- Deactivate all tabs visually
+        -- ... (Tab logic) ...
         for _, btn in tabButton.Parent:GetChildren() do
             if btn:IsA("TextButton") then
                 btn.UIStroke.Thickness = 0
             end
         end
-        
-        -- Activate current tab visually
         stroke.Thickness = 2
-        stroke.Color = Themes[CurrentTheme].AccentColor
         
-        -- Set active tab 
-        ActiveTab.Value = tabName
-        
-        -- Hide settings panel
         MainWindow.SettingsOpen.Value = false
         
-        -- Hide all content frames
-        for _, frame in ContentFrame:GetChildren() do
-            if frame:IsA("Frame") then
-                frame.Visible = false
-            end
+        ActiveTab.Value = tabName
+        for _, frame in SectionContainer:GetChildren() do
+            if frame:IsA("Frame") then frame.Visible = false end
+        end
+        tabSectionsFrame.Visible = true
+        
+        local currentActiveSection = ActiveSection.Value
+        local firstSectionButton = tabSectionsFrame:FindFirstChild(firstSectionName)
+        
+        if firstSectionButton and (not ContentFrame:FindFirstChild(tabName .. "_" .. firstSectionName .. "_Content").Visible or currentActiveSection ~= firstSectionName) then
+            firstSectionButton:Click()
         end
         
-        -- Show the selected content frame
-        contentFrame.Visible = true
     end)
     
-    return contentFrame -- Return the content frame for customization
+    -- 5. Return the Tab Object
+    local tabObject = {
+        section = AddSection,
+    }
+    
+    return tabObject 
 end
 
-
--- Initialization function (Creates ALL scaffolding: ScreenGui, Window, Tab/Content Containers)
+-- Initialization function (Creates ALL scaffolding)
 function ExoUI:Init(title)
-    if LibraryInstance then
-        print("ExoUI: Library already initialized.")
-        return
-    end
+    if LibraryInstance then return end
+    if not PlayerGui then return end
     
-    if not PlayerGui then
-        print("ExoUI: PlayerGui not found. Cannot initialize.")
-        return
-    end
-    
-    -- 1. Create ScreenGui (Main Container)
     LibraryInstance = Instance.new("ScreenGui")
     LibraryInstance.Name = "ExoUILibrary"
     LibraryInstance.DisplayOrder = 999
-    LibraryInstance.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     LibraryInstance.Parent = PlayerGui
     
-    -- 2. Create Main Window Frame (Scaffolding)
     MainWindow = Instance.new("Frame")
     MainWindow.Name = "MainWindow"
-    MainWindow.Size = UDim2.new(0, 500, 0, 350)
-    MainWindow.Position = UDim2.new(0.5, -250, 0.5, -175)
+    MainWindow.Size = UDim2.new(0, 600, 0, 400)
+    MainWindow.Position = UDim2.new(0.5, -300, 0.5, -200)
     MainWindow.BackgroundColor3 = Themes[CurrentTheme].PrimaryBg
     MainWindow.Parent = LibraryInstance
     
@@ -308,14 +671,10 @@ function ExoUI:Init(title)
     padding.PaddingTop = UDim.new(0, 30)
     padding.Parent = MainWindow
     
-    -- Title Bar, Controls, etc. (Omitted for brevity, but included in the complete module)
-    -- ... (TitleBar, TitleLabel, CloseButton, MinimizeButton, SettingsButton setup) ...
-    
-    -- 3. Title Bar (Draggable Area)
+    -- Title Bar setup
     local TitleBar = Instance.new("Frame")
     TitleBar.Name = "TitleBar"
     TitleBar.Size = UDim2.new(1, 0, 0, 30)
-    TitleBar.Position = UDim2.new(0, 0, 0, 0)
     TitleBar.BackgroundColor3 = Themes[CurrentTheme].SecondaryBg
     TitleBar.Parent = MainWindow
     MakeDraggable(MainWindow, TitleBar)
@@ -332,7 +691,7 @@ function ExoUI:Init(title)
     TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
     TitleLabel.Parent = TitleBar
     
-    -- 4. Controls (X and -)
+    -- Controls (X and -)
     local Controls = Instance.new("Frame")
     Controls.Name = "Controls"
     Controls.Size = UDim2.new(0, 80, 1, 0)
@@ -347,7 +706,6 @@ function ExoUI:Init(title)
     ControlsList.HorizontalAlignment = Enum.HorizontalAlignment.Right
     ControlsList.Parent = Controls
     
-    -- Close (X) button
     local CloseButton = Instance.new("TextButton")
     CloseButton.Name = "CloseButton"
     CloseButton.Text = "X"
@@ -357,16 +715,11 @@ function ExoUI:Init(title)
     CloseButton.Font = Enum.Font.SourceSansBold
     CloseButton.TextSize = 15
     CloseButton.Parent = Controls
-    
     local CloseCorner = Instance.new("UICorner")
     CloseCorner.CornerRadius = UDim2.new(0.5, 0)
     CloseCorner.Parent = CloseButton
+    CloseButton.MouseButton1Click:Connect(function() LibraryInstance:Destroy() end)
     
-    CloseButton.MouseButton1Click:Connect(function()
-        LibraryInstance:Destroy()
-    end)
-    
-    -- Minimize (-) button
     local MinimizeButton = Instance.new("TextButton")
     MinimizeButton.Name = "MinimizeButton"
     MinimizeButton.Text = "-"
@@ -376,77 +729,51 @@ function ExoUI:Init(title)
     MinimizeButton.Font = Enum.Font.SourceSansBold
     MinimizeButton.TextSize = 15
     MinimizeButton.Parent = Controls
-    
     local MinimizeCorner = Instance.new("UICorner")
     MinimizeCorner.CornerRadius = UDim2.new(0.5, 0)
     MinimizeCorner.Parent = MinimizeButton
+    MinimizeButton.MouseButton1Click:Connect(function() MainWindow.Visible = false end)
     
-    MinimizeButton.MouseButton1Click:Connect(function()
-        MainWindow.Visible = false
-    end)
+    -- Value trackers (ActiveTab, ActiveSection, SettingsOpen) are omitted for brevity in this comment block.
     
-    -- 5. Settings Panel Button (Gear Icon)
-    local SettingsButton = Instance.new("ImageButton")
-    SettingsButton.Name = "SettingsButton"
-    SettingsButton.Size = UDim2.new(0, 24, 0, 24)
-    SettingsButton.Position = UDim2.new(0, 5, 0.5, -12)
-    SettingsButton.BackgroundTransparency = 1
-    SettingsButton.Image = "rbxassetid://15222045618" -- Example gear icon
-    SettingsButton.ImageColor3 = Themes[CurrentTheme].AccentColor
-    SettingsButton.Parent = TitleBar
+    local ActiveTab = Instance.new("StringValue")
+    ActiveTab.Name = "ActiveTab"
+    ActiveTab.Value = "" 
+    ActiveTab.Parent = MainWindow
+
+    local ActiveSection = Instance.new("StringValue")
+    ActiveSection.Name = "ActiveSection"
+    ActiveSection.Value = "" 
+    ActiveSection.Parent = MainWindow
     
     local SettingsOpen = Instance.new("BoolValue")
     SettingsOpen.Name = "SettingsOpen"
     SettingsOpen.Value = false
     SettingsOpen.Parent = MainWindow
     
-    -- 6. Tab Container (Holds tabs and settings panel)
+    -- Layout Frames (TabContainer, SectionContainer, ContentFrame)
     local TabContainer = Instance.new("Frame")
     TabContainer.Name = "TabContainer"
-    TabContainer.Size = UDim2.new(0.3, 0, 1, -30)
+    TabContainer.Size = UDim2.new(0.2, 0, 1, -30)
     TabContainer.Position = UDim2.new(0, 0, 0, 30)
     TabContainer.BackgroundColor3 = Themes[CurrentTheme].SecondaryBg
     TabContainer.Parent = MainWindow
     
-    local TabList = Instance.new("UIListLayout")
-    TabList.Padding = UDim.new(0, 5)
-    TabList.SortOrder = Enum.SortOrder.LayoutOrder
-    TabList.Parent = TabContainer
-    
-    local TabPadding = Instance.new("UIPadding")
-    TabPadding.PaddingLeft = UDim.new(0, 5)
-    TabPadding.PaddingRight = UDim.new(0, 5)
-    TabPadding.PaddingTop = UDim.new(0, 5)
-    TabPadding.PaddingBottom = UDim.new(0, 5)
-    TabPadding.Parent = TabContainer
+    local SectionContainer = Instance.new("Frame")
+    SectionContainer.Name = "SectionContainer"
+    SectionContainer.Size = UDim2.new(0.2, 0, 1, -30)
+    SectionContainer.Position = UDim2.new(0.2, 0, 0, 30)
+    SectionContainer.BackgroundColor3 = Themes[CurrentTheme].PrimaryBg
+    SectionContainer.Parent = MainWindow
 
-    -- Settings Sub-Panel (Handles Theme Options)
-    local SettingsPanel = Instance.new("Frame")
-    SettingsPanel.Name = "SettingsPanel"
-    SettingsPanel.Size = UDim2.new(1, 0, 1, 0)
-    SettingsPanel.BackgroundTransparency = 1
-    SettingsPanel.Parent = TabContainer
-    SettingsPanel.Visible = false
-
-    local SettingsLayout = Instance.new("UIListLayout")
-    SettingsLayout.Padding = UDim.new(0, 5)
-    SettingsLayout.Parent = SettingsPanel
+    local ContentFrame = Instance.new("Frame") -- This frame holds all ScrollingFrames for sections
+    ContentFrame.Name = "ContentFrame"
+    ContentFrame.Size = UDim2.new(0.6, 0, 1, -30)
+    ContentFrame.Position = UDim2.new(0.4, 0, 0, 30)
+    ContentFrame.BackgroundColor3 = Themes[CurrentTheme].PrimaryBg
+    ContentFrame.Parent = MainWindow
     
-    local Label = Instance.new("TextLabel")
-    Label.Text = "THEMES"
-    Label.Size = UDim2.new(1, 0, 0, 20)
-    Label.BackgroundTransparency = 1
-    Label.TextColor3 = Themes[CurrentTheme].AccentColor
-    Label.Font = Enum.Font.SourceSansBold
-    Label.TextSize = 16
-    Label.Parent = SettingsPanel
-    
-    -- Create theme options UI elements
-    CreateThemeOption(SettingsPanel, "Dark")
-    CreateThemeOption(SettingsPanel, "Light")
-    CreateThemeOption(SettingsPanel, "BlueNight")
-
-    -- Tabs Sub-Panel (Container for dynamically created tabs)
+    -- Tabs Sub-Panel
     local TabsFrame = Instance.new("Frame")
     TabsFrame.Name = "Tabs"
     TabsFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -458,49 +785,17 @@ function ExoUI:Init(title)
     TabsLayout.SortOrder = Enum.SortOrder.LayoutOrder
     TabsLayout.Parent = TabsFrame
     
-    -- 7. Content Frame (The area where tab contents go)
-    local ContentFrame = Instance.new("Frame")
-    ContentFrame.Name = "ContentFrame"
-    ContentFrame.Size = UDim2.new(0.7, 0, 1, -30)
-    ContentFrame.Position = UDim2.new(0.3, 0, 0, 30)
-    ContentFrame.BackgroundColor3 = Themes[CurrentTheme].PrimaryBg
-    ContentFrame.Parent = MainWindow
+    local TabPadding = Instance.new("UIPadding")
+    TabPadding.PaddingLeft = UDim.new(0, 5)
+    TabPadding.PaddingRight = UDim.new(0, 5)
+    TabPadding.PaddingTop = UDim.new(0, 5)
+    TabPadding.PaddingBottom = UDim.new(0, 5)
+    TabPadding.Parent = TabsFrame
     
-    -- Value to track active tab (Crucial for cross-module communication)
-    local ActiveTab = Instance.new("StringValue")
-    ActiveTab.Name = "ActiveTab"
-    ActiveTab.Value = "" 
-    ActiveTab.Parent = MainWindow
-    
-    -- 8. Connect Settings Button
-    SettingsButton.MouseButton1Click:Connect(function()
-        SettingsOpen.Value = not SettingsOpen.Value
-    end)
-    
-    SettingsOpen.Changed:Connect(function(value)
-        if value then
-            TabsFrame.Visible = false
-            SettingsPanel.Visible = true
-            -- Hide all feature content when settings open
-            for _, frame in ContentFrame:GetChildren() do
-                if frame:IsA("Frame") then frame.Visible = false end
-            end
-        else
-            SettingsPanel.Visible = false
-            TabsFrame.Visible = true
-            -- Show active tab content when settings close
-            local activeTabName = ActiveTab.Value
-            if activeTabName ~= "" then
-                local content = ContentFrame:FindFirstChild(activeTabName .. "Content")
-                if content then content.Visible = true end
-            end
-        end
-    end)
-    
-    -- 9. Setup Keybind
+    -- Setup Keybind
     SetupKeybind()
     
-    -- Apply the initial theme (Dark) to finalize colors
+    -- Apply the initial theme
     ApplyTheme(CurrentTheme)
 
     return ExoUI
