@@ -8,7 +8,8 @@
     - Toast notifications.
     - Blur effect toggle.
     
-    FIX: Added RunService.Heartbeat:Wait() in updateCanvasSize to fix controls not appearing.
+    FIX: Removed automatic canvas update from createCheckbox to prevent layout timing issues.
+    The user script must now call finalizeTab() after creating all controls for a tab.
 ]]
 
 local player = game.Players.LocalPlayer
@@ -98,12 +99,12 @@ local function createToastNotification(message, duration, color)
     toast:Destroy()
 end
 
-local function updateCanvasSize(content)
+-- Renamed to finalizeTab, but keeping the internal name for consistency within the module
+local function updateCanvasSize(content) 
     -- This ensures the scrolling frame content fits the controls
     local listLayout = content:FindFirstChildOfClass("UIListLayout")
     if listLayout then
-        -- FIX: Wait one frame to allow the UIListLayout to process the new child and update AbsoluteContentSize
-        -- This is crucial to fix the issue where controls don't appear.
+        -- Wait one frame to allow the UIListLayout to process all new children and update AbsoluteContentSize
         RunService.Heartbeat:Wait()
         
         -- Calculate total height needed for children and padding
@@ -173,7 +174,7 @@ local function createTab(name)
         tabButton.BackgroundColor3 = TAB_ACTIVE_COLOR
         content.Visible = true
         currentTab = {Button = tabButton, Content = content}
-        updateCanvasSize(content)
+        updateCanvasSize(content) -- Recalculate size when switching tabs
     end)
     
     tabs[name] = {Button = tabButton, Content = content}
@@ -246,7 +247,7 @@ local function createCheckbox(parent, labelText, initial)
     end}
     
     update() -- Initial update to set colors
-    updateCanvasSize(parent)
+    -- updateCanvasSize(parent) -- Removed: Now handled by the calling script via finalizeTab
     return c
 end
 
@@ -526,7 +527,7 @@ local function initializeGUI()
         if not isResizing and not isDragging and currentTab and not isMinimized then
              updateCanvasSize(currentTab.Content)
         end
-    end)
+    })
 
 end
 
@@ -552,6 +553,8 @@ local ModularMenu = {
     end,
     -- Provides access to the main frame for advanced manipulation
     Frame = outer,
+    -- NEW: Function to manually force the canvas to size correctly
+    finalizeTab = updateCanvasSize,
 }
 
 return ModularMenu
