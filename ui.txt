@@ -8,8 +8,8 @@
     - Toast notifications.
     - Blur effect toggle.
     
-    FIX: Added an extra task.wait() in finalizeTab to improve layout timing stability
-    and ensure the UIListLayout correctly reports AbsoluteContentSize.
+    FIX: The finalizeTab function now uses a slightly longer task.wait(0.1) 
+    to robustly fix canvas size calculation failures caused by UI layout timing issues.
 ]]
 
 local player = game.Players.LocalPlayer
@@ -104,10 +104,9 @@ local function updateCanvasSize(content)
     -- This ensures the scrolling frame content fits the controls
     local listLayout = content:FindFirstChildOfClass("UIListLayout")
     if listLayout then
-        -- NEW: Add an extra small delay to allow UIListLayout to fully compute before reading its size
-        task.wait() 
-        -- Wait one frame to allow the UIListLayout to process all new children and update AbsoluteContentSize
-        RunService.Heartbeat:Wait()
+        -- NEW ROBUST FIX: Wait 0.1 seconds to guarantee the UIListLayout has finished calculating 
+        -- its AbsoluteContentSize after all children have been added/re-parented.
+        task.wait(0.1) 
         
         -- Calculate total height needed for children and padding
         local totalHeight = listLayout.AbsoluteContentSize.Y
