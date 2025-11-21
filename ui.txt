@@ -1,9 +1,11 @@
 -- This is the complete, self-contained, image-free library code.
--- This version fixes the Vector2/Vector3 error in the drag logic and removes the invalid 'Capture' property usage.
+-- This version adds the Close (X) and Minimize (-) buttons to the header,
+-- and implements the RightShift keybind to toggle the menu visibility.
 
 -- Core Roblox Services
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local TeleportService = game:GetService("TeleportService")
 local TweenService = game:GetService("TweenService")
 
 -- The main table to be returned as the module
@@ -11,7 +13,7 @@ local ExoUI = {}
 
 -- Variables
 local Player = Players.LocalPlayer
-local ScreenGui = nil
+local ScreenGui = nil -- Now accessible globally in the module scope
 local CurrentDraggableFrame = nil
 local IsDragging = false
 local DragOffset = nil -- Stores a Vector2
@@ -82,10 +84,29 @@ function ExoUI:Init(Title)
         Parent = HeaderFrame
     })
 
-    -- Header Text
+    -- Control Buttons Container (to hold Close and Minimize)
+    local ControlsContainer = Create("Frame", {
+        Name = "ControlsContainer",
+        Size = UDim2.new(0, 70, 1, 0), -- Enough width for two buttons + padding
+        Position = UDim2.new(1, -70, 0, 0),
+        BackgroundTransparency = 1,
+        Parent = HeaderFrame
+    })
+    
+    -- Horizontal List Layout for buttons
+    Create("UIListLayout", {
+        Name = "ControlsLayout",
+        FillDirection = Enum.FillDirection.Horizontal,
+        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+        Padding = UDim.new(0, 5),
+        Parent = ControlsContainer
+    })
+    
+    -- Header Text (adjusted size to make space for control buttons)
     Create("TextLabel", {
         Name = "TitleLabel",
-        Size = UDim2.new(1, -20, 1, 0),
+        Size = UDim2.new(1, -75, 1, 0), -- Adjusted width
         Position = UDim2.new(0, Config.Padding, 0, 0),
         Text = Title or "ExoUI",
         Font = Config.Font,
@@ -96,7 +117,71 @@ function ExoUI:Init(Title)
         TextXAlignment = Enum.TextXAlignment.Left
     })
     
-    -- Dragging Logic (FIXED: Explicitly converts InputObject.Position (Vector3) to Vector2)
+    -- === 1. Minimize Button (-) ===
+    local MinimizeButton = Create("TextButton", {
+        Name = "MinimizeButton",
+        Text = "—", -- En dash/Hyphen for minimize
+        Size = UDim2.new(0, 30, 0, 25),
+        BackgroundColor3 = Config.PrimaryColor,
+        TextColor3 = Config.TextColor,
+        Font = Config.Font,
+        TextSize = 18,
+        BorderSizePixel = 0,
+        Parent = ControlsContainer,
+    })
+    
+    Create("UICorner", {
+        CornerRadius = UDim.new(0, 5),
+        Parent = MinimizeButton
+    })
+    
+    MinimizeButton.MouseButton1Click:Connect(function()
+        -- Toggle the visibility of the MainFrame
+        MainFrame.Visible = not MainFrame.Visible
+        -- When minimized, the title bar remains visible (since it's part of the ScreenGui), 
+        -- but since MainFrame holds the title bar, we just hide the MainFrame itself.
+    end)
+    
+    -- === 2. Close/Rejoin Button (X) ===
+    local CloseButton = Create("TextButton", {
+        Name = "CloseButton",
+        Text = "X",
+        Size = UDim2.new(0, 30, 0, 25),
+        BackgroundColor3 = Color3.fromRGB(200, 50, 50), -- Red color
+        TextColor3 = Config.TextColor,
+        Font = Config.Font,
+        TextSize = 18,
+        BorderSizePixel = 0,
+        Parent = ControlsContainer,
+    })
+    
+    Create("UICorner", {
+        CornerRadius = UDim.new(0, 5),
+        Parent = CloseButton
+    })
+    
+    CloseButton.MouseButton1Click:Connect(function()
+        -- 1. Destroy the entire ScreenGui artifact
+        if ScreenGui then
+            ScreenGui:Destroy()
+        end
+        
+        -- 2. Attempt to rejoin the current game instance
+        TeleportService:Teleport(game.PlaceId)
+    end)
+
+    -- === 3. Keybind Toggle (Right Shift) ===
+    UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+        -- Ensure input is RightShift and not processed by core game scripts
+        if input.KeyCode == Enum.KeyCode.RightShift and not gameProcessedEvent then
+            -- Check if the main frame still exists before attempting to toggle
+            if MainFrame and MainFrame.Parent then
+                MainFrame.Visible = not MainFrame.Visible
+            end
+        end
+    end)
+
+    -- Dragging Logic
     local function StartDrag(input, gameProcessedEvent)
         if gameProcessedEvent then return end
         
@@ -239,6 +324,14 @@ function ExoUI:CreateTab(Name, IsDefault)
             tab.Content.Visible = false
             -- Reset button appearance
             tab.Button.BackgroundColor3 = Config.PrimaryColor
+            
+            -- Crucial: Close any open dropdowns when switching tabs
+            -- This relies on the convention that dropdown options are parented to ScreenGui
+            for _, child in ipairs(ScreenGui:GetChildren()) do
+                if child.Name == "DropdownOptionsContainer" then
+                    child:Destroy()
+                end
+            end
         end
         
         -- Show current content and highlight button
@@ -620,7 +713,7 @@ function ExoUI.Controls:_CreateDropdown(ParentFrame, controlName, options, defau
     })
     
     local currentState = defaultValue
-    local isOpen = false
+    local OptionsContainer = nil -- Initialize here
     
     -- Dropdown Button
     local DropdownButton = Create("TextButton", {
@@ -641,81 +734,126 @@ function ExoUI.Controls:_CreateDropdown(ParentFrame, controlName, options, defau
         Parent = DropdownButton
     })
     
-    -- Options Container (initially hidden)
-    local OptionsContainer = Create("Frame", {
-        Name = "OptionsContainer",
-        Size = UDim2.new(0.45, 0, 0, 0),
-        Position = UDim2.new(0.55, 0, 1, 5),
-        AnchorPoint = Vector2.new(0, 0),
-        BackgroundColor3 = Config.PrimaryColor,
-        BorderSizePixel = 0,
-        Visible = false,
-        ZIndex = 2,
-        Parent = ControlFrame -- Parented to ControlFrame so it can overlap
-    })
-    
-    Create("UICorner", {
-        CornerRadius = UDim.new(0, 5),
-        Parent = OptionsContainer
-    })
-    
-    local OptionsLayout = Create("UIListLayout", {
-        Name = "OptionsLayout",
-        Padding = UDim.new(0, 1),
-        FillDirection = Enum.FillDirection.Vertical,
-        Parent = OptionsContainer,
-        SortOrder = Enum.SortOrder.LayoutOrder
-    })
-    
-    -- Function to handle option selection
-    local function selectOption(option)
-        currentState = option
-        DropdownButton.Text = option
-        OptionsContainer.Visible = false
-        isOpen = false
-        pcall(callback, option)
-    end
-    
-    -- Populate Options
-    for i, option in ipairs(options) do
-        local OptionButton = Create("TextButton", {
-            Name = option:gsub("%s+", "_") .. "Option",
-            Text = option,
-            Size = UDim2.new(1, 0, 0, Config.ControlHeight),
+    -- Options Container setup function
+    local function createOptionsContainer()
+        -- Use a unique name to easily find and destroy later
+        OptionsContainer = Create("Frame", {
+            Name = "DropdownOptionsContainer",
+            -- Size will be set dynamically on open
+            Size = UDim2.new(0, 0, 0, 0), 
+            Position = UDim2.new(0, 0, 0, 0),
+            AnchorPoint = Vector2.new(0, 0),
             BackgroundColor3 = Config.PrimaryColor,
-            TextColor3 = Config.TextColor,
-            Font = Config.Font,
-            TextSize = 14,
             BorderSizePixel = 0,
+            Visible = false,
+            ZIndex = 5, -- High ZIndex to ensure it is on top
+            Parent = ScreenGui -- <-- **FIX: Parented to ScreenGui for overlay**
+        })
+        
+        Create("UICorner", {
+            CornerRadius = UDim.new(0, 5),
             Parent = OptionsContainer
         })
         
-        -- Highlight on hover/selection
-        OptionButton.MouseEnter:Connect(function() OptionButton.BackgroundColor3 = Config.AccentColor end)
-        OptionButton.MouseLeave:Connect(function() OptionButton.BackgroundColor3 = Config.PrimaryColor end)
+        local OptionsLayout = Create("UIListLayout", {
+            Name = "OptionsLayout",
+            Padding = UDim.new(0, 1),
+            FillDirection = Enum.FillDirection.Vertical,
+            Parent = OptionsContainer,
+            SortOrder = Enum.SortOrder.LayoutOrder
+        })
         
-        OptionButton.MouseButton1Click:Connect(function()
-            selectOption(option)
+        -- Function to handle option selection
+        local function selectOption(option)
+            currentState = option
+            DropdownButton.Text = option
+            OptionsContainer.Visible = false
+            pcall(callback, option)
+        end
+        
+        -- Populate Options
+        for i, option in ipairs(options) do
+            local OptionButton = Create("TextButton", {
+                Name = option:gsub("%s+", "_") .. "Option",
+                Text = option,
+                Size = UDim2.new(1, 0, 0, Config.ControlHeight),
+                BackgroundColor3 = Config.PrimaryColor,
+                TextColor3 = Config.TextColor,
+                Font = Config.Font,
+                TextSize = 14,
+                BorderSizePixel = 0,
+                Parent = OptionsContainer
+            })
+            
+            -- Highlight on hover/selection
+            OptionButton.MouseEnter:Connect(function() OptionButton.BackgroundColor3 = Config.AccentColor end)
+            OptionButton.MouseLeave:Connect(function() OptionButton.BackgroundColor3 = Config.PrimaryColor end)
+            
+            OptionButton.MouseButton1Click:Connect(function()
+                selectOption(option)
+            end)
+        end
+        
+        -- Wait for the UIListLayout to calculate its size, then update container height
+        OptionsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            OptionsContainer.Size = UDim2.new(0, DropdownButton.AbsoluteSize.X, 0, OptionsLayout.AbsoluteContentSize.Y)
         end)
+        
+        -- Destroy the detached container if the control is removed
+        ControlFrame.AncestryChanged:Connect(function()
+            if not ControlFrame.Parent then
+                OptionsContainer:Destroy()
+            end
+        end)
+
+        return OptionsLayout
     end
     
-    -- Adjust size of OptionsContainer based on content
-    OptionsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        OptionsContainer.Size = UDim2.new(0.45, 0, 0, OptionsLayout.AbsoluteContentSize.Y)
-    end)
-    OptionsContainer.Size = UDim2.new(0.45, 0, 0, OptionsLayout.AbsoluteContentSize.Y) -- Initial size
+    -- Create the container and get the layout for size monitoring
+    local OptionsLayout = createOptionsContainer()
+
 
     -- Toggle Dropdown
     local function toggleDropdown()
-        isOpen = not isOpen
-        OptionsContainer.Visible = isOpen
-        if isOpen then
-            -- Bring to front
-            OptionsContainer.ZIndex = 3
-        else
-            OptionsContainer.ZIndex = 2
+        
+        -- If another dropdown is open, close it first
+        for _, child in ipairs(ScreenGui:GetChildren()) do
+            if child.Name == "DropdownOptionsContainer" and child ~= OptionsContainer then
+                child.Visible = false
+            end
+        end
+
+        OptionsContainer.Visible = not OptionsContainer.Visible
+        
+        if OptionsContainer.Visible then
+            -- Calculate absolute position and size of the button
+            local absPos = DropdownButton.AbsolutePosition
+            local absSize = DropdownButton.AbsoluteSize
+            
+            -- Set the width and height based on the button and content
+            OptionsContainer.Size = UDim2.new(0, absSize.X, 0, OptionsLayout.AbsoluteContentSize.Y)
+            
+            -- Position the container just below the button
+            OptionsContainer.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 1) -- +1 for a small gap
         end
     end
+    
+    -- Close the dropdown if the user clicks anywhere else
+    local closeConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+        if not gameProcessedEvent and OptionsContainer.Visible then
+            local mousePos = Vector2.new(input.Position.X, input.Position.Y)
+            -- Check if the click is outside the button and the options container
+            local isOverButton = DropdownButton:GetAbsolutePosition().X <= mousePos.X and mousePos.X <= DropdownButton:GetAbsolutePosition().X + DropdownButton.AbsoluteSize.X and
+                                 DropdownButton:GetAbsolutePosition().Y <= mousePos.Y and mousePos.Y <= DropdownButton:GetAbsolutePosition().Y + DropdownButton.AbsoluteSize.Y
+            
+            local isOverOptions = OptionsContainer:GetAbsolutePosition().X <= mousePos.X and mousePos.X <= OptionsContainer:GetAbsolutePosition().X + OptionsContainer.AbsoluteSize.X and
+                                  OptionsContainer:GetAbsolutePosition().Y <= mousePos.Y and mousePos.Y <= OptionsContainer:GetAbsolutePosition().Y + OptionsContainer.AbsoluteSize.Y
+
+            if not isOverButton and not isOverOptions then
+                OptionsContainer.Visible = false
+            end
+        end
+    end)
     
     DropdownButton.MouseButton1Click:Connect(toggleDropdown)
     
