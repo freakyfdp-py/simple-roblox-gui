@@ -330,15 +330,17 @@ local function _CreateDropdown(ParentFrame, controlName, options, defaultValue, 
     
     -- Options Container setup function
     local function createOptionsContainer()
+        -- FIX 1: Set a non-zero size initially, matching the button width, so UILayout can calculate
         OptionsContainer = Create("Frame", {
             Name = "DropdownOptionsContainer",
-            Size = UDim2.new(0, 0, 0, 0), 
+            Size = UDim2.new(0, DropdownButton.AbsoluteSize.X, 0, 0), -- Use calculated button width
             Position = UDim2.new(0, 0, 0, 0),
             AnchorPoint = Vector2.new(0, 0),
             BackgroundColor3 = Config.PrimaryColor,
             BorderSizePixel = 0,
             Visible = false,
             ZIndex = 5, 
+            ClipsDescendants = true, -- Add this to ensure contents are clipped if layout is buggy
             Parent = ScreenGui -- <-- **Parented to ScreenGui for overlay**
         })
         
@@ -374,6 +376,10 @@ local function _CreateDropdown(ParentFrame, controlName, options, defaultValue, 
                 Font = Config.Font,
                 TextSize = 14,
                 BorderSizePixel = 0,
+                TextXAlignment = Enum.TextXAlignment.Left, -- FIX 2: Ensure text is aligned left
+                TextScaled = false,
+                TextWrapped = true,
+                TextPadding = Insets.new(5, 0, 5, 0), -- Add some padding on the left
                 Parent = OptionsContainer
             })
             
@@ -388,6 +394,7 @@ local function _CreateDropdown(ParentFrame, controlName, options, defaultValue, 
         
         -- Wait for the UIListLayout to calculate its size, then update container height
         OptionsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            -- Set size to button width and calculated content height
             OptionsContainer.Size = UDim2.new(0, DropdownButton.AbsoluteSize.X, 0, OptionsLayout.AbsoluteContentSize.Y)
         end)
         
@@ -420,6 +427,7 @@ local function _CreateDropdown(ParentFrame, controlName, options, defaultValue, 
             local absPos = DropdownButton.AbsolutePosition
             local absSize = DropdownButton.AbsoluteSize
             
+            -- Update Size and Position on visibility toggle, AFTER layout has settled
             OptionsContainer.Size = UDim2.new(0, absSize.X, 0, OptionsLayout.AbsoluteContentSize.Y)
             OptionsContainer.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 1)
         end
@@ -430,7 +438,6 @@ local function _CreateDropdown(ParentFrame, controlName, options, defaultValue, 
         if not gameProcessedEvent and OptionsContainer.Visible then
             local mousePos = Vector2.new(input.Position.X, input.Position.Y)
             
-            -- FIX: Changed :GetAbsolutePosition() to .AbsolutePosition
             local isOverButton = DropdownButton.AbsolutePosition.X <= mousePos.X and mousePos.X <= DropdownButton.AbsolutePosition.X + DropdownButton.AbsoluteSize.X and
                                  DropdownButton.AbsolutePosition.Y <= mousePos.Y and mousePos.Y <= DropdownButton.AbsolutePosition.Y + DropdownButton.AbsoluteSize.Y
             
