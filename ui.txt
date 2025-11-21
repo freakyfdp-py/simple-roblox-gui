@@ -1,561 +1,498 @@
 --[[
-    ModularMenu.lua - A complete, feature-rich Roblox UI module.
+    ExoUI Library - A single-file, loadstring-compatible UI Framework for Roblox.
     Features:
-    - Custom, modern styling.
-    - Dragging and Movement using the title bar.
-    - Resizing via a bottom-right handle.
-    - Tab and Checkbox control creation.
-    - Toast notifications.
-    - Blur effect toggle.
-    
-    FIX: Added a task.wait(0.05) inside createTab after button parenting 
-    to ensure UIListLayout accurately calculates the size and position of all tabs 
-    before the rest of the tab logic executes.
-]]
+    - Initialization function: ExoUI:Init(title)
+    - Draggable Main Window.
+    - Close (X) and Minimize (-) buttons.
+    - RightShift keybind to toggle visibility.
+    - Dynamic Theme Switcher (Dark, Light, Blue Night).
+    - Tab System (Combat, Visual).
+--]]
 
-local player = game.Players.LocalPlayer
-local PlayerGui = player:WaitForChild("PlayerGui")
-local TweenService = game:GetService("TweenService")
+local ExoUI = {}
+
+-- Define the key services and variables
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local ContextActionService = game:GetService("ContextActionService")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
+local LibraryInstance = nil -- Main ScreenGui instance
+local MainWindow = nil      -- Main Window Frame
+local CurrentTheme = "Dark"
 
--- Configuration Constants
-local CONTROL_HEIGHT = 40
-local CONTROL_WIDTH = 330
-local TAB_HEIGHT = 35
-local MIN_WIDTH = 350 -- Updated for better look
-local MIN_HEIGHT = 200
-local RESIZE_HANDLE_SIZE = 15
+-- Color Palettes for themes
+local Themes = {
+    Dark = {
+        PrimaryBg = Color3.fromRGB(32, 32, 32),    -- Main background
+        SecondaryBg = Color3.fromRGB(40, 40, 40),  -- Tab/Settings panel background
+        AccentColor = Color3.fromRGB(150, 10, 255),-- Accent for selection/border
+        TitleText = Color3.fromRGB(255, 255, 255), -- White
+        ContentText = Color3.fromRGB(200, 200, 200),
+    },
+    Light = {
+        PrimaryBg = Color3.fromRGB(240, 240, 240),
+        SecondaryBg = Color3.fromRGB(255, 255, 255),
+        AccentColor = Color3.fromRGB(30, 144, 255), -- Dodger Blue
+        TitleText = Color3.fromRGB(0, 0, 0),
+        ContentText = Color3.fromRGB(50, 50, 50),
+    },
+    BlueNight = {
+        PrimaryBg = Color3.fromRGB(26, 43, 60),    -- Dark Slate Blue
+        SecondaryBg = Color3.fromRGB(37, 58, 80),
+        AccentColor = Color3.fromRGB(0, 191, 255), -- Deep Sky Blue
+        TitleText = Color3.fromRGB(230, 240, 255),
+        ContentText = Color3.fromRGB(180, 200, 220),
+    }
+}
 
--- Color Palette (Dark Theme with Blue Accent)
-local LABEL_COLOR = Color3.fromRGB(220,220,255)
-local BACKGROUND_COLOR = Color3.fromRGB(30,30,45)
-local ACCENT_COLOR = Color3.fromRGB(80,140,255)
-local SUCCESS_COLOR = Color3.fromRGB(34,197,94)
-local OFF_COLOR = Color3.fromRGB(60,60,80)
-local TITLE_COLOR = Color3.fromRGB(45,45,65)
-local TAB_INACTIVE_COLOR = Color3.fromRGB(55,55,75)
-local TAB_ACTIVE_COLOR = ACCENT_COLOR
+--***********************************************************************
+--** UI Creation Functions
+--***********************************************************************
 
--- Internal State Variables
-local controlStates = {}
-local tabs = {}
-local currentTab = nil
-local blur = Instance.new("BlurEffect")
-local isMinimized = false
-local gui, outer, titleBar, contentArea, tabsFrame, closeButton, minimizeButton
+local function ApplyTheme(themeName)
+    local theme = Themes[themeName]
+    if not theme then return end
 
--- Drag and Resize State
-local isDragging = false
-local isResizing = false
-local dragStartPos = Vector2.new()
-local frameStartPos = UDim2.new()
-local frameStartSize = UDim2.new()
-local resizeEdge = "" -- "BR" for bottom-right
-
--- Utility Functions
-
-local function createToastNotification(message, duration, color)
-    duration = duration or 3
-    color = color or ACCENT_COLOR
-    local toast = Instance.new("Frame")
-    toast.Size = UDim2.fromOffset(300, 50)
-    -- Position slightly above the bottom center
-    toast.Position = UDim2.new(0.5, -150, 1, 10)
-    toast.BackgroundColor3 = color
-    toast.BorderSizePixel = 0
-    toast.ZIndex = 10
-    toast.Parent = PlayerGui
-    
-    local toastCorner = Instance.new("UICorner")
-    toastCorner.CornerRadius = UDim.new(0, 8)
-    toastCorner.Parent = toast
-    
-    local toastLabel = Instance.new("TextLabel")
-    toastLabel.Size = UDim2.new(1, -20, 1, -10)
-    toastLabel.Position = UDim2.new(0, 10, 0, 5)
-    toastLabel.BackgroundTransparency = 1
-    toastLabel.Text = message
-    toastLabel.TextColor3 = Color3.new(1, 1, 1)
-    toastLabel.Font = Enum.Font.SourceSans
-    toastLabel.TextSize = 18
-    toastLabel.TextWrapped = true
-    toastLabel.TextYAlignment = Enum.TextYAlignment.Center
-    toastLabel.Parent = toast
-    
-    local infoShow = TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-    local infoHide = TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-    
-    -- Show animation (move up)
-    TweenService:Create(toast, infoShow, {Position = UDim2.new(0.5, -150, 1, -60)}):Play()
-    
-    task.wait(duration)
-    
-    -- Hide animation (move down and fade)
-    local tweenHide = TweenService:Create(toast, infoHide, {Position = UDim2.new(0.5, -150, 1, 10), BackgroundTransparency = 0})
-    tweenHide:Play()
-    tweenHide.Completed:Wait()
-    
-    toast:Destroy()
-end
-
--- Function to ensure the ScrollingFrame CanvasSize correctly fits its contents
-local function updateCanvasSize(content) 
-    local listLayout = content:FindFirstChildOfClass("UIListLayout")
-    if listLayout then
-        -- Wait 0.1 seconds to guarantee the UIListLayout has finished calculating 
-        -- its AbsoluteContentSize after all children have been added/re-parented.
-        task.wait(0.1) 
+    -- Update the Main Window
+    if MainWindow then
+        MainWindow.BackgroundColor3 = theme.PrimaryBg
+        MainWindow:FindFirstChild("TitleBar").BackgroundColor3 = theme.SecondaryBg
+        MainWindow:FindFirstChild("TitleBar"):FindFirstChild("TitleLabel").TextColor3 = theme.TitleText
         
-        local totalHeight = listLayout.AbsoluteContentSize.Y
-        local visibleHeight = content.AbsoluteSize.Y
-        -- Set canvas size, ensuring it's at least as tall as the visible area
-        content.CanvasSize = UDim2.new(0, 0, 0, math.max(totalHeight + 20, visibleHeight))
+        -- Apply to Settings/Tabs Container
+        local TabContainer = MainWindow:FindFirstChild("TabContainer")
+        if TabContainer then
+            TabContainer.BackgroundColor3 = theme.SecondaryBg
+            
+            -- Update tab buttons
+            for _, btn in TabContainer:FindFirstChild("Tabs"):GetChildren() do
+                if btn:IsA("TextButton") then
+                    btn.TextColor3 = theme.ContentText
+                    -- Update accent on selected tab
+                    if btn.Name == MainWindow.ActiveTab.Value then
+                        btn.UIStroke.Color = theme.AccentColor
+                    else
+                        btn.UIStroke.Color = theme.SecondaryBg
+                    end
+                end
+            end
+        end
+        
+        -- Apply to the Content Frame
+        local ContentFrame = MainWindow:FindFirstChild("ContentFrame")
+        if ContentFrame then
+            ContentFrame.BackgroundColor3 = theme.PrimaryBg
+        end
+        
+        -- Apply to settings button
+        local SettingsButton = MainWindow:FindFirstChild("TitleBar"):FindFirstChild("SettingsButton")
+        if SettingsButton then
+            SettingsButton.ImageColor3 = theme.AccentColor
+        end
+        
+        -- Apply to Control buttons (X, -)
+        local Controls = MainWindow:FindFirstChild("TitleBar"):FindFirstChild("Controls")
+        if Controls then
+            Controls:FindFirstChild("CloseButton").TextColor3 = theme.ContentText
+            Controls:FindFirstChild("MinimizeButton").TextColor3 = theme.ContentText
+        end
     end
+    CurrentTheme = themeName
 end
 
--- UI Control Creators
+local function CreateThemeOption(parent, themeName)
+    local theme = Themes[themeName]
+    local button = Instance.new("TextButton")
+    button.Name = themeName .. "ThemeButton"
+    button.Text = themeName
+    button.Size = UDim2.new(1, 0, 0, 30)
+    button.BackgroundColor3 = theme.PrimaryBg
+    button.TextColor3 = theme.TitleText
+    button.Font = Enum.Font.SourceSans
+    button.TextSize = 14
+    button.Parent = parent
 
-local function createTab(name)
-    -- Ensure all existing tabs are inactive
-    for _, t in pairs(tabs) do
-        t.Button.BackgroundColor3 = TAB_INACTIVE_COLOR
-        t.Content.Visible = false
-    end
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim2.new(0, 4)
+    corner.Parent = button
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 1
+    stroke.Color = theme.AccentColor
+    stroke.Parent = button
 
-    -- Create Button
+    button.MouseEnter:Connect(function()
+        stroke.Thickness = 2
+    end)
+    button.MouseLeave:Connect(function()
+        stroke.Thickness = 1
+    end)
+    
+    button.MouseButton1Click:Connect(function()
+        ApplyTheme(themeName)
+    end)
+end
+
+local function CreateTab(tabName, isDefault)
     local tabButton = Instance.new("TextButton")
-    -- We set the size to 1,0,1,0 initially, and let the UIListLayout size it later
-    tabButton.Size = UDim2.new(1, 0, 1, 0)
-    tabButton.Text = name
-    tabButton.BackgroundColor3 = TAB_ACTIVE_COLOR
-    tabButton.TextColor3 = Color3.new(1, 1, 1)
+    tabButton.Name = tabName
+    tabButton.Text = tabName
+    tabButton.Size = UDim2.new(1, 0, 0, 40)
+    tabButton.BackgroundColor3 = Themes[CurrentTheme].SecondaryBg
+    tabButton.TextColor3 = Themes[CurrentTheme].ContentText
     tabButton.Font = Enum.Font.SourceSansBold
     tabButton.TextSize = 16
-    tabButton.BorderSizePixel = 0
-    tabButton.Parent = tabsFrame
-    
-    local tabCorner = Instance.new("UICorner")
-    tabCorner.CornerRadius = UDim.new(0, 5)
-    tabCorner.Parent = tabButton
-
-    -- NEW: Crucial delay here to allow the UIListLayout in tabsFrame to update its children's sizes
-    task.wait(0.05) 
-
-    -- Re-size existing tab buttons to fit the new tab (this logic relies on the UIListLayout being active)
-    local tabCount = table.getn(tabs) + 1
-    local newSize = UDim2.new(1 / tabCount, 0, 1, 0)
-    for _, t in pairs(tabs) do
-        t.Button.Size = newSize
-    end
-    tabButton.Size = newSize
-
-    -- Create Content Scrolling Frame
-    local content = Instance.new("ScrollingFrame")
-    content.Size = UDim2.new(1, 0, 1, 0)
-    content.Position = UDim2.new(0, 0, 0, 0)
-    content.BackgroundTransparency = 1
-    content.CanvasSize = UDim2.new(0, 0, 0, 0) -- Set dynamically later
-    content.Visible = true
-    content.ScrollBarThickness = 6
-    content.Parent = contentArea
-    
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.Padding = UDim.new(0, 15)
-    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    listLayout.Parent = content
-    
-    -- Tab Activation Logic
-    tabButton.MouseButton1Click:Connect(function()
-        for _, t in pairs(tabs) do
-            t.Button.BackgroundColor3 = TAB_INACTIVE_COLOR
-            t.Content.Visible = false
-        end
-        
-        tabButton.BackgroundColor3 = TAB_ACTIVE_COLOR
-        content.Visible = true
-        currentTab = {Button = tabButton, Content = content}
-        updateCanvasSize(content) -- Recalculate size when switching tabs
-    end)
-    
-    tabs[name] = {Button = tabButton, Content = content}
-    currentTab = {Button = tabButton, Content = content} -- Set as active tab
-    
-    return content
-end
-
-local function createCheckbox(parent, labelText, initial)
-    local c = Instance.new("Frame")
-    c.Size = UDim2.fromOffset(CONTROL_WIDTH, CONTROL_HEIGHT)
-    c.BackgroundTransparency = 1
-    c.Parent = parent
-    
-    local padding = Instance.new("UIPadding")
-    padding.PaddingLeft = UDim.new(0, 10)
-    padding.PaddingRight = UDim.new(0, 10)
-    padding.Parent = c
-
-    -- Label
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -50, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = labelText
-    label.TextColor3 = LABEL_COLOR
-    label.Font = Enum.Font.SourceSans
-    label.TextSize = 18
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = c
-
-    -- Checkbox Button
-    local box = Instance.new("TextButton")
-    box.Size = UDim2.fromOffset(30, 30)
-    box.Position = UDim2.new(1, -40, 0.5, -15) -- Centered vertically, offset from right
-    box.Text = ""
-    box.BorderSizePixel = 0
-    box.Parent = c
-    
-    local cc = Instance.new("UICorner")
-    cc.CornerRadius = UDim.new(0, 5)
-    cc.Parent = box
-    
-    local state = initial or false
-    
-    local function update()
-        if state then
-            box.BackgroundColor3 = SUCCESS_COLOR
-            box.Text = "✓"
-            box.TextSize = 25
-            box.TextColor3 = Color3.new(1, 1, 1)
-        else
-            box.BackgroundColor3 = OFF_COLOR
-            box.Text = ""
-        end
-        controlStates[labelText].State = state
-    end
-    
-    box.MouseButton1Click:Connect(function()
-        state = not state
-        update()
-    end)
-    
-    controlStates[labelText] = {Type = "Checkbox", State = state, Instance = box, Toggle = function(newState)
-        if newState ~= nil and typeof(newState) == "boolean" then
-            state = newState
-        else
-            state = not state
-        end
-        update()
-    end}
-    
-    update() -- Initial update to set colors
-    return c
-end
-
--- Core UI Logic (Drag, Resize, Minimize)
-
-local function startDrag(input)
-    isDragging = true
-    dragStartPos = input.Position
-    frameStartPos = outer.Position
-    -- Prevent controls from interacting while dragging
-    ContextActionService:BindAction("Drag", function() return Enum.ContextActionResult.Sink end, false, Enum.UserInputType.MouseMovement)
-end
-
-local function endDrag()
-    isDragging = false
-    ContextActionService:UnbindAction("Drag")
-end
-
-local function startResize(input)
-    isResizing = true
-    dragStartPos = input.Position
-    frameStartSize = outer.Size
-    -- Prevent controls from interacting while resizing
-    ContextActionService:BindAction("Resize", function() return Enum.ContextActionResult.Sink end, false, Enum.UserInputType.MouseMovement)
-end
-
-local function endResize()
-    isResizing = false
-    ContextActionService:UnbindAction("Resize")
-end
-
-local function onInputChanged(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement and isDragging then
-        local delta = input.Position - dragStartPos
-        local newX = frameStartPos.X.Offset + delta.X
-        local newY = frameStartPos.Y.Offset + delta.Y
-        
-        -- Clamp to screen bounds (optional but good practice)
-        local maxX = PlayerGui.AbsoluteSize.X - outer.AbsoluteSize.X
-        local maxY = PlayerGui.AbsoluteSize.Y - outer.AbsoluteSize.Y
-        
-        newX = math.clamp(newX, 0, maxX)
-        newY = math.clamp(newY, 0, maxY)
-        
-        outer.Position = UDim2.fromOffset(newX, newY)
-        
-    elseif input.UserInputType == Enum.UserInputType.MouseMovement and isResizing then
-        local delta = input.Position - dragStartPos
-        local newWidth = frameStartSize.X.Offset + delta.X
-        local newHeight = frameStartSize.Y.Offset + delta.Y
-        
-        -- Clamp to minimum size
-        newWidth = math.max(newWidth, MIN_WIDTH)
-        newHeight = math.max(newHeight, MIN_HEIGHT)
-
-        outer.Size = UDim2.fromOffset(newWidth, newHeight)
-    end
-end
-
-local function toggleMinimize()
-    isMinimized = not isMinimized
-    local targetSize
-    
-    if isMinimized then
-        -- Minimize to just the title bar height
-        targetSize = UDim2.fromOffset(outer.AbsoluteSize.X, titleBar.AbsoluteSize.Y)
-        -- Hide everything else
-        tabsFrame.Visible = false
-        contentArea.Visible = false
-        minimizeButton.Text = "[]" -- Maximize icon (or square icon)
-        
-    else
-        -- Restore to original size
-        targetSize = UDim2.fromOffset(frameStartSize.X.Offset, frameStartSize.Y.Offset)
-        -- Show everything
-        tabsFrame.Visible = true
-        contentArea.Visible = true
-        minimizeButton.Text = "_" -- Minimize icon (or dash icon)
-    end
-    
-    local info = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-    TweenService:Create(outer, info, {Size = targetSize}):Play()
-end
-
-local function toggleBlur(enabled)
-    if enabled then
-        if not blur.Parent then
-            blur.Parent = game.Lighting
-            blur.Size = 0
-            TweenService:Create(blur, TweenInfo.new(0.5), {Size = 15}):Play()
-        end
-    else
-        if blur.Parent then
-            TweenService:Create(blur, TweenInfo.new(0.5), {Size = 0}):Play()
-            task.wait(0.5)
-            blur.Parent = nil
-        end
-    end
-end
-
--- Initialization Function
-
-local function initializeGUI()
-    gui = Instance.new("ScreenGui")
-    gui.Name = "ModularMenu"
-    gui.Parent = PlayerGui
-    gui.ResetOnSpawn = false -- Crucial for persistent UIs
-
-    -- Outer Frame (The Window)
-    outer = Instance.new("Frame")
-    outer.Size = UDim2.fromOffset(350, 600)
-    outer.Position = UDim2.new(0.5, -175, 0.5, -300)
-    outer.BackgroundColor3 = BACKGROUND_COLOR
-    outer.BorderSizePixel = 0
-    outer.ZIndex = 1
-    outer.Parent = gui
-    frameStartSize = outer.Size -- Save initial size
+    tabButton.Parent = MainWindow:FindFirstChild("TabContainer"):FindFirstChild("Tabs")
     
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent = outer
+    corner.CornerRadius = UDim2.new(0, 4)
+    corner.Parent = tabButton
 
-    -- Title Bar (Drag Handle)
-    titleBar = Instance.new("Frame")
-    titleBar.Size = UDim2.new(1, 0, 0, 40)
-    titleBar.BackgroundColor3 = TITLE_COLOR
-    titleBar.Parent = outer
-    
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, -70, 1, 0) -- Make space for buttons
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "🌟 Exploit Controls Pro"
-    titleLabel.TextColor3 = LABEL_COLOR
-    titleLabel.Font = Enum.Font.SourceSansBold
-    titleLabel.TextSize = 20
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Position = UDim2.new(0, 10, 0, 0)
-    titleLabel.Parent = titleBar
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = isDefault and 2 or 0
+    stroke.Color = Themes[CurrentTheme].AccentColor
+    stroke.Parent = tabButton
 
-    -- Control Buttons (Close, Minimize, Blur)
-    local buttonFrame = Instance.new("Frame")
-    buttonFrame.Size = UDim2.new(0, 65, 1, 0)
-    buttonFrame.Position = UDim2.new(1, -70, 0, 0)
-    buttonFrame.BackgroundTransparency = 1
-    buttonFrame.Parent = titleBar
-    
-    local btnList = Instance.new("UIListLayout")
-    btnList.FillDirection = Enum.FillDirection.Horizontal
-    btnList.HorizontalAlignment = Enum.HorizontalAlignment.Right
-    btnList.Padding = UDim.new(0, 5)
-    btnList.Parent = buttonFrame
-    
-    -- Blur Toggle Button
-    local blurButton = Instance.new("TextButton")
-    blurButton.Size = UDim2.fromOffset(25, 25)
-    blurButton.BackgroundColor3 = OFF_COLOR
-    blurButton.Text = "B" -- Blur
-    blurButton.TextColor3 = Color3.new(1,1,1)
-    blurButton.Font = Enum.Font.SourceSansBold
-    blurButton.TextSize = 18
-    blurButton.Parent = buttonFrame
-    
-    local blurCorner = Instance.new("UICorner")
-    blurCorner.CornerRadius = UDim.new(0, 4)
-    blurCorner.Parent = blurButton
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0.05, 0)
+    padding.PaddingBottom = UDim.new(0.05, 0)
+    padding.Parent = tabButton
 
-    local isBlurred = false
-    blurButton.MouseButton1Click:Connect(function()
-        isBlurred = not isBlurred
-        toggleBlur(isBlurred)
-        blurButton.BackgroundColor3 = isBlurred and ACCENT_COLOR or OFF_COLOR
-    end)
-
-    -- Minimize Button
-    minimizeButton = Instance.new("TextButton")
-    minimizeButton.Size = UDim2.fromOffset(25, 25)
-    minimizeButton.BackgroundColor3 = OFF_COLOR
-    minimizeButton.Text = "_" -- Minimize icon
-    minimizeButton.TextColor3 = Color3.new(1,1,1)
-    minimizeButton.Font = Enum.Font.SourceSansBold
-    minimizeButton.TextSize = 22
-    minimizeButton.Parent = buttonFrame
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Name = tabName .. "Content"
+    contentFrame.Size = UDim2.new(1, 0, 1, 0)
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.Parent = MainWindow:FindFirstChild("ContentFrame")
+    contentFrame.Visible = isDefault
     
-    local minCorner = Instance.new("UICorner")
-    minCorner.CornerRadius = UDim.new(0, 4)
-    minCorner.Parent = minimizeButton
-    
-    minimizeButton.MouseButton1Click:Connect(toggleMinimize)
+    -- Example content for the tab
+    local label = Instance.new("TextLabel")
+    label.Text = tabName .. " Tab Content"
+    label.TextColor3 = Themes[CurrentTheme].ContentText
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(1, 0, 0, 30)
+    label.Position = UDim2.new(0, 10, 0, 10)
+    label.Font = Enum.Font.SourceSansBold
+    label.TextSize = 20
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = contentFrame
 
-    -- Close Button
-    closeButton = Instance.new("TextButton")
-    closeButton.Size = UDim2.fromOffset(25, 25)
-    closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    closeButton.Text = "X"
-    closeButton.TextColor3 = Color3.new(1,1,1)
-    closeButton.Font = Enum.Font.SourceSansBold
-    closeButton.TextSize = 18
-    closeButton.Parent = buttonFrame
-    
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 4)
-    closeCorner.Parent = closeButton
-
-    closeButton.MouseButton1Click:Connect(function()
-        toggleBlur(false)
-        gui:Destroy()
+    tabButton.MouseButton1Click:Connect(function()
+        -- Deactivate all tabs visually
+        for _, btn in tabButton.Parent:GetChildren() do
+            if btn:IsA("TextButton") then
+                btn.UIStroke.Thickness = 0
+            end
+        end
+        
+        -- Activate current tab visually
+        stroke.Thickness = 2
+        
+        -- Set active tab and update content
+        MainWindow.ActiveTab.Value = tabName
+        
+        -- Hide all content frames
+        for _, frame in MainWindow:FindFirstChild("ContentFrame"):GetChildren() do
+            if frame:IsA("Frame") then
+                frame.Visible = false
+            end
+        end
+        
+        -- Show the selected content frame
+        contentFrame.Visible = true
     end)
     
-    -- Tabs Frame
-    tabsFrame = Instance.new("Frame")
-    tabsFrame.Size = UDim2.new(1, -20, 0, TAB_HEIGHT)
-    tabsFrame.Position = UDim2.new(0, 10, 0, 40)
-    tabsFrame.BackgroundTransparency = 1
-    tabsFrame.Parent = outer
+    -- Ensure stroke color updates on theme change
+    tabButton.Changed:Connect(function(property)
+        if property == "TextColor3" then
+            if MainWindow.ActiveTab.Value == tabName then
+                stroke.Color = Themes[CurrentTheme].AccentColor
+            end
+        end
+    end)
     
-    local tll = Instance.new("UIListLayout")
-    tll.FillDirection = Enum.FillDirection.Horizontal
-    tll.Padding = UDim.new(0, 5)
-    tll.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    tll.Parent = tabsFrame
+    return tabButton
+end
 
-    -- Content Area
-    contentArea = Instance.new("Frame")
-    contentArea.Size = UDim2.new(1, -20, 1, -(40 + TAB_HEIGHT + 20)) -- 40 (title) + 35 (tab) + 20 (padding)
-    contentArea.Position = UDim2.new(0, 10, 0, 40 + TAB_HEIGHT + 10)
-    contentArea.BackgroundTransparency = 1
-    contentArea.ClipsDescendants = true
-    contentArea.Parent = outer
-    
-    -- Resizing Handle
-    local resizeHandle = Instance.new("Frame")
-    resizeHandle.Size = UDim2.fromOffset(RESIZE_HANDLE_SIZE, RESIZE_HANDLE_SIZE)
-    resizeHandle.Position = UDim2.new(1, -RESIZE_HANDLE_SIZE, 1, -RESIZE_HANDLE_SIZE)
-    resizeHandle.BackgroundColor3 = ACCENT_COLOR
-    resizeHandle.BackgroundTransparency = 0.5
-    resizeHandle.BorderSizePixel = 0
-    resizeHandle.Parent = outer
-    resizeHandle.Cursor = Enum.Cursor.SizeNWSE -- Diagonal resize cursor
-    
-    local handleCorner = Instance.new("UICorner")
-    handleCorner.CornerRadius = UDim.new(0, 5)
-    handleCorner.Parent = resizeHandle
+--***********************************************************************
+--** Core Logic Functions
+--***********************************************************************
 
-    -- Dragging and Resizing Connections
+-- Draggable implementation
+local function MakeDraggable(frame, titleBar)
+    local dragging = false
+    local dragStart = Vector2.new(0, 0)
+    local frameStart = Vector2.new(0, 0)
+
     titleBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            startDrag(input)
+            dragging = true
+            dragStart = input.Position
+            frameStart = frame.AbsolutePosition
+            input:Capture()
         end
     end)
 
     titleBar.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            endDrag()
-        end
-    end)
-    
-    resizeHandle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            startResize(input)
+            dragging = false
         end
     end)
 
-    resizeHandle.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            endResize()
-            -- After resizing, re-calculate canvas size for the current tab
-            if currentTab then
-                updateCanvasSize(currentTab.Content)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            local newPos = frameStart + delta
+            
+            -- Clamp position to stay within the screen
+            local screenX = PlayerGui.AbsoluteSize.X
+            local screenY = PlayerGui.AbsoluteSize.Y
+            
+            local clampedX = math.clamp(newPos.X, 0, screenX - frame.AbsoluteSize.X)
+            local clampedY = math.clamp(newPos.Y, 0, screenY - frame.AbsoluteSize.Y)
+
+            frame.Position = UDim2.fromOffset(clampedX, clampedY)
+        end
+    end)
+end
+
+-- Keybind implementation
+local function SetupKeybind()
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if input.KeyCode == Enum.KeyCode.RightShift and not gameProcessed then
+            if LibraryInstance then
+                LibraryInstance.Enabled = not LibraryInstance.Enabled
             end
         end
     end)
-    
-    UserInputService.InputChanged:Connect(onInputChanged)
-    
-    -- Ensure content is updated when the frame is finished tweening after minimize/maximize
-    outer:GetPropertyChangedSignal("Size"):Connect(function()
-        if not isResizing and not isDragging and currentTab and not isMinimized then
-             updateCanvasSize(currentTab.Content)
-        end
-    })
-
 end
 
-initializeGUI()
+-- Initialization function
+function ExoUI:Init(title)
+    if LibraryInstance then
+        print("ExoUI: Library already initialized.")
+        return
+    end
+    
+    if not PlayerGui then
+        print("ExoUI: PlayerGui not found. Cannot initialize.")
+        return
+    end
+    
+    -- 1. Create ScreenGui (Main Container)
+    LibraryInstance = Instance.new("ScreenGui")
+    LibraryInstance.Name = "ExoUILibrary"
+    LibraryInstance.DisplayOrder = 999
+    LibraryInstance.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    LibraryInstance.Parent = PlayerGui
+    
+    -- 2. Create Main Window Frame
+    MainWindow = Instance.new("Frame")
+    MainWindow.Name = "MainWindow"
+    MainWindow.Size = UDim2.new(0, 500, 0, 350)
+    MainWindow.Position = UDim2.new(0.5, -250, 0.5, -175) -- Center of the screen
+    MainWindow.BackgroundColor3 = Themes[CurrentTheme].PrimaryBg
+    MainWindow.Parent = LibraryInstance
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim2.new(0, 8)
+    corner.Parent = MainWindow
+    
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop = UDim.new(0, 30) -- Make space for title bar
+    padding.Parent = MainWindow
+    
+    -- 3. Title Bar (Draggable Area)
+    local TitleBar = Instance.new("Frame")
+    TitleBar.Name = "TitleBar"
+    TitleBar.Size = UDim2.new(1, 0, 0, 30)
+    TitleBar.Position = UDim2.new(0, 0, 0, 0)
+    TitleBar.BackgroundColor3 = Themes[CurrentTheme].SecondaryBg
+    TitleBar.Parent = MainWindow
+    MakeDraggable(MainWindow, TitleBar)
 
--- Public Interface for the Module
-local ModularMenu = {
-    createTab = createTab,
-    createCheckbox = createCheckbox,
-    createToastNotification = createToastNotification,
-    getControlValue = function(n)
-        local s = controlStates[n]
-        return s and s.State or nil
-    end,
-    -- Allows external scripts to manually toggle a control
-    setControlState = function(n, newState)
-        local s = controlStates[n]
-        if s and s.Toggle then
-            s.Toggle(newState)
-            return true
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Name = "TitleLabel"
+    TitleLabel.Text = title or "ExoUI Library"
+    TitleLabel.Size = UDim2.new(1, -120, 1, 0)
+    TitleLabel.Position = UDim2.new(0, 40, 0, 0)
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.TextColor3 = Themes[CurrentTheme].TitleText
+    TitleLabel.Font = Enum.Font.SourceSansBold
+    TitleLabel.TextSize = 18
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.Parent = TitleBar
+    
+    -- 4. Controls (X and -)
+    local Controls = Instance.new("Frame")
+    Controls.Name = "Controls"
+    Controls.Size = UDim2.new(0, 80, 1, 0)
+    Controls.Position = UDim2.new(1, -80, 0, 0)
+    Controls.BackgroundTransparency = 1
+    Controls.Parent = TitleBar
+    
+    local ControlsList = Instance.new("UIListLayout")
+    ControlsList.Padding = UDim.new(0, 5)
+    ControlsList.FillDirection = Enum.FillDirection.Horizontal
+    ControlsList.VerticalAlignment = Enum.VerticalAlignment.Center
+    ControlsList.HorizontalAlignment = Enum.HorizontalAlignment.Right
+    ControlsList.Parent = Controls
+    
+    -- Close (X) button
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Name = "CloseButton"
+    CloseButton.Text = "X"
+    CloseButton.Size = UDim2.new(0, 20, 0, 20)
+    CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    CloseButton.TextColor3 = Themes[CurrentTheme].ContentText
+    CloseButton.Font = Enum.Font.SourceSansBold
+    CloseButton.TextSize = 15
+    CloseButton.Parent = Controls
+    
+    local CloseCorner = Instance.new("UICorner")
+    CloseCorner.CornerRadius = UDim2.new(0.5, 0)
+    CloseCorner.Parent = CloseButton
+    
+    CloseButton.MouseButton1Click:Connect(function()
+        LibraryInstance:Destroy() -- Destroy the whole UI
+    end)
+    
+    -- Minimize (-) button
+    local MinimizeButton = Instance.new("TextButton")
+    MinimizeButton.Name = "MinimizeButton"
+    MinimizeButton.Text = "-"
+    MinimizeButton.Size = UDim2.new(0, 20, 0, 20)
+    MinimizeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    MinimizeButton.TextColor3 = Themes[CurrentTheme].ContentText
+    MinimizeButton.Font = Enum.Font.SourceSansBold
+    MinimizeButton.TextSize = 15
+    MinimizeButton.Parent = Controls
+    
+    local MinimizeCorner = Instance.new("UICorner")
+    MinimizeCorner.CornerRadius = UDim2.new(0.5, 0)
+    MinimizeCorner.Parent = MinimizeButton
+    
+    MinimizeButton.MouseButton1Click:Connect(function()
+        MainWindow.Visible = false -- Hide the main window frame
+    end)
+    
+    -- 5. Settings Panel Button (Gear Icon)
+    local SettingsButton = Instance.new("ImageButton")
+    SettingsButton.Name = "SettingsButton"
+    SettingsButton.Size = UDim2.new(0, 24, 0, 24)
+    SettingsButton.Position = UDim2.new(0, 5, 0.5, -12)
+    SettingsButton.BackgroundTransparency = 1
+    -- Use a common gear icon asset ID (This is a generic Roblox icon)
+    SettingsButton.Image = "rbxassetid://15222045618" -- Gear icon
+    SettingsButton.ImageColor3 = Themes[CurrentTheme].AccentColor
+    SettingsButton.Parent = TitleBar
+    
+    local SettingsOpen = Instance.new("BoolValue")
+    SettingsOpen.Name = "SettingsOpen"
+    SettingsOpen.Value = false
+    SettingsOpen.Parent = MainWindow
+
+    -- 6. Tab and Settings Container
+    local TabContainer = Instance.new("Frame")
+    TabContainer.Name = "TabContainer"
+    TabContainer.Size = UDim2.new(0.3, 0, 1, -30) -- 30% width, full height minus padding
+    TabContainer.Position = UDim2.new(0, 0, 0, 30)
+    TabContainer.BackgroundColor3 = Themes[CurrentTheme].SecondaryBg
+    TabContainer.Parent = MainWindow
+    
+    local TabList = Instance.new("UIListLayout")
+    TabList.Padding = UDim.new(0, 5)
+    TabList.SortOrder = Enum.SortOrder.LayoutOrder
+    TabList.Parent = TabContainer
+    
+    local TabPadding = Instance.new("UIPadding")
+    TabPadding.PaddingLeft = UDim.new(0, 5)
+    TabPadding.PaddingRight = UDim.new(0, 5)
+    TabPadding.PaddingTop = UDim.new(0, 5)
+    TabPadding.PaddingBottom = UDim.new(0, 5)
+    TabPadding.Parent = TabContainer
+
+    -- Settings Sub-Panel (Initially hidden)
+    local SettingsPanel = Instance.new("Frame")
+    SettingsPanel.Name = "SettingsPanel"
+    SettingsPanel.Size = UDim2.new(1, 0, 1, 0)
+    SettingsPanel.BackgroundTransparency = 1
+    SettingsPanel.Parent = TabContainer
+    SettingsPanel.Visible = false -- Initially hidden
+
+    local SettingsLayout = Instance.new("UIListLayout")
+    SettingsLayout.Padding = UDim.new(0, 5)
+    SettingsLayout.Parent = SettingsPanel
+    
+    local Label = Instance.new("TextLabel")
+    Label.Text = "THEMES"
+    Label.Size = UDim2.new(1, 0, 0, 20)
+    Label.BackgroundTransparency = 1
+    Label.TextColor3 = Themes[CurrentTheme].AccentColor
+    Label.Font = Enum.Font.SourceSansBold
+    Label.TextSize = 16
+    Label.Parent = SettingsPanel
+    
+    -- Create theme options
+    CreateThemeOption(SettingsPanel, "Dark")
+    CreateThemeOption(SettingsPanel, "Light")
+    CreateThemeOption(SettingsPanel, "BlueNight")
+
+    -- Tabs Sub-Panel (Initially visible)
+    local TabsFrame = Instance.new("Frame")
+    TabsFrame.Name = "Tabs"
+    TabsFrame.Size = UDim2.new(1, 0, 1, 0)
+    TabsFrame.BackgroundTransparency = 1
+    TabsFrame.Parent = TabContainer
+
+    local TabsLayout = Instance.new("UIListLayout")
+    TabsLayout.Padding = UDim.new(0, 5)
+    TabsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    TabsLayout.Parent = TabsFrame
+    
+    -- 7. Content Frame (For tab contents)
+    local ContentFrame = Instance.new("Frame")
+    ContentFrame.Name = "ContentFrame"
+    ContentFrame.Size = UDim2.new(0.7, 0, 1, -30) -- 70% width, full height minus padding
+    ContentFrame.Position = UDim2.new(0.3, 0, 0, 30)
+    ContentFrame.BackgroundColor3 = Themes[CurrentTheme].PrimaryBg
+    ContentFrame.Parent = MainWindow
+    
+    -- Value to track active tab (used for theme application)
+    local ActiveTab = Instance.new("StringValue")
+    ActiveTab.Name = "ActiveTab"
+    ActiveTab.Value = "Combat" -- Default Tab
+    ActiveTab.Parent = MainWindow
+
+    -- Create tab buttons and content
+    CreateTab("Combat", true) -- Default tab
+    CreateTab("Visual", false)
+    
+    -- 8. Connect Settings Button
+    SettingsButton.MouseButton1Click:Connect(function()
+        SettingsOpen.Value = not SettingsOpen.Value
+    end)
+    
+    SettingsOpen.Changed:Connect(function(value)
+        if value then
+            SettingsPanel.Visible = true
+            TabsFrame.Visible = false
+        else
+            SettingsPanel.Visible = false
+            TabsFrame.Visible = true
         end
-        return false
-    end,
-    -- Provides access to the main frame for advanced manipulation
-    Frame = outer,
-    -- NEW: Function to manually force the canvas to size correctly
-    finalizeTab = updateCanvasSize,
-}
+    end)
+    
+    -- 9. Setup Keybind
+    SetupKeybind()
+    
+    print("ExoUI: Library '" .. (title or "ExoUI Library") .. "' initialized successfully.")
+    
+    -- Apply the initial theme (Dark) to finalize colors
+    ApplyTheme(CurrentTheme)
 
-return ModularMenu
+    return ExoUI
+end
+
+-- Return the library table
+return ExoUI
