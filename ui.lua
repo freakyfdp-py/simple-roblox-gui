@@ -34,13 +34,6 @@ local task = task
 local function cleanName(text)
     local s = tostring(text or "")
     
-    -- Attempt to use string.gsub first
-    local success, result = pcall(string.gsub, s, "%s", "")
-    if success and result then
-        return result
-    end
-    
-    -- Fallback manual clean (in case string.gsub is missing or corrupted)
     local cleaned = {}
     for i = 1, #s do
         local char = s:sub(i, i)
@@ -53,11 +46,6 @@ end
 
 -- Helper function to safely format numbers (replaces string.format)
 local function safeFormat(formatString, ...)
-    local success, result = pcall(string.format, formatString, ...)
-    if success and result then
-        return result
-    end
-    -- Simple fallback for number formatting (only works for single numeric argument)
     local arg1 = select(1, ...)
     if type(arg1) == "number" then
         return tostring(math.floor(arg1 + 0.5)) -- .0f style
