@@ -1,9 +1,11 @@
 --[[
-    Roblox UI Library - Complete Implementation (Library.lua)
+    UI Library ModuleScript - FINAL CORRECTED VERSION
     
-    FINAL FIXES:
-    1. CRITICAL: Fixed "Invalid argument #1 (Vector2 expected, got Vector3)" during dragging by ensuring only Vector2 coordinates are used in mouse position calculations.
-    2. Audited InputBlocker and Checkbox components for persistent errors.
+    This version includes fixes for:
+    1. Dragging error (Vector3 vs Vector2)
+    2. InputBlocker/Dropdown error (MouseButton1Click replaced by InputBegan)
+    3. CornerRadius error (UICorner handling in helpers)
+    4. Gsub error (Ensuring Options.Text exists for internal controls)
 --]]
 
 local Library = {}
@@ -12,6 +14,7 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService") 
+local task = task -- Ensure compatibility
 
 -- --- THEME & CONSTANTS ---
 local THEME = {
@@ -39,7 +42,6 @@ local THEME = {
 
 -- --- HELPER FUNCTIONS ---
 
--- Creates a base frame with common properties
 local function CreateBaseFrame(parent, name, size, position, color, radius)
     local frame = Instance.new("Frame")
     frame.Name = name
@@ -56,7 +58,6 @@ local function CreateBaseFrame(parent, name, size, position, color, radius)
     return frame
 end
 
--- Creates a base button with common properties
 local function CreateButton(parent, text, size, position, color, radius)
     local button = Instance.new("TextButton")
     button.Name = text:gsub("%s", "")
@@ -76,7 +77,6 @@ local function CreateButton(parent, text, size, position, color, radius)
 
     local defaultColor = color or THEME.ControlBg
 
-    -- Simple hover effect
     button.MouseEnter:Connect(function() button.BackgroundColor3 = THEME.ControlHover end)
     button.MouseLeave:Connect(function() button.BackgroundColor3 = defaultColor end)
 
@@ -329,9 +329,12 @@ function Library.init(Title)
             local function CreateControlContainer(Type, Options)
                 local Control = BaseComponent(Section, Options)
                 
-                local Container = CreateBaseFrame(ControlContainer, Type .. Options.Text:gsub("%s", ""),
+                -- FIX: Add a fallback empty string if Options.Text is nil to prevent 'gsub' error
+                local nameBase = Options.Text or ""
+                
+                local Container = CreateBaseFrame(ControlContainer, Type .. nameBase:gsub("%s", ""),
                     UDim2.new(1, 0, 0, THEME.ControlHeight), nil, THEME.ControlBg)
-                Container.Name = Type .. "_" .. Options.Text:gsub("%s", "")
+                Container.Name = Type .. "_" .. nameBase:gsub("%s", "")
                 Container.BackgroundTransparency = 0
                 Control.Instance = Container
                 
@@ -358,8 +361,6 @@ function Library.init(Title)
                 local Control, Container = CreateControlContainer("Check", Options)
                 local IsChecked = Options.Default or false
                 
-                -- CRITICAL: This is the button that was causing the persistent CornerRadius error if manually assigned. 
-                -- We rely solely on CreateButton's internal UICorner creation.
                 local CheckBox = CreateButton(Container, IsChecked and "✓" or "",
                     UDim2.new(0, 20, 0, 18), UDim2.new(1, -25, 0.5, -9), THEME.Background, UDim.new(0, 3))
                 CheckBox.TextSize = 16
@@ -582,6 +583,8 @@ function Library.init(Title)
                     Maximum = 1,
                     Default = h,
                     Callback = UpdateColor,
+                    -- FIX: Provide a Text field to prevent 'gsub' error on internal slider creation
+                    Text = "HueSliderControl"
                 }
 
                 local SliderControl, SliderContainer = Section.addSlider(ColorSliderOptions)
@@ -589,7 +592,7 @@ function Library.init(Title)
                 SliderContainer.Position = UDim2.new(0, 0, 0, 0)
                 SliderContainer.Parent = Container 
 
-                SliderControl.Label.Text = "Hue"
+                SliderControl.Label.Text = "Hue" -- Change the visible label back to "Hue"
                 SliderContainer.Name = "HueSlider"
 
                 UpdateColor(h)
@@ -633,6 +636,10 @@ function Library.init(Title)
                 Control.Label.Position = UDim2.fromScale(0, 0)
 
                 return Control
+            end
+            
+            if Side == "Right" then
+                SectionContainer.LayoutOrder = 1 
             end
             
             return Tab:AddChild(Section)
