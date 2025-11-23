@@ -1,12 +1,12 @@
 --[[
-    UI Library ModuleScript - FINAL CORRECTED VERSION
+    UI Library ModuleScript - FINAL & DEFINITIVE VERSION
     
     This version includes definitive fixes for ALL errors reported:
     1. CornerRadius property (Fixed in CreateButton and CreateBaseFrame helpers).
     2. MouseButton1Click on Frame (Changed to InputBegan in Window.init).
     3. Vector2 vs Vector3 drag error (Fixed in Window.init drag logic).
     4. Gsub error (Ensured Options.Text exists for internal controls).
-    5. 'attempt to index nil with 'Size'' (Fixed positioning and sizing of internal slider in addColorPicker).
+    5. 'attempt to index nil with 'Size'' (Fixed by safely adjusting the internal slider's components).
 --]]
 
 local Library = {}
@@ -451,6 +451,11 @@ function Library.init(Title)
                 end)
                 
                 UpdateValue(Value) 
+                
+                -- Expose internal elements for complex controls like ColorPicker
+                Control.SliderBar = SliderBar
+                Control.ValueLabel = ValueLabel
+                
                 return Control
             end
             
@@ -591,15 +596,25 @@ function Library.init(Title)
                 local SliderControl = Section.addSlider(ColorSliderOptions) 
                 local SliderContainer = SliderControl.Instance
 
-                -- FIX: Explicitly set the size and position of the internal slider container 
-                -- relative to the parent control container (Container)
-                SliderContainer.Size = UDim2.new(0.6, 0, 0, THEME.ControlHeight) -- 60% width
-                SliderContainer.Position = UDim2.new(0.3, 0, 0, 0) -- Position it to the right of the main control label (which is ~30% wide)
+                -- FINAL FIX for the 'Size' error: Adjust the internal components of the slider
+                -- instead of trying to move the whole container, which is subject to the ListLayout.
 
-                -- The slider label must also be repositioned since addSlider assumes full width
-                SliderControl.Label.Size = UDim2.new(0.4, 0, 1, 0) -- Make the internal label smaller
+                -- Move the slider container to the right side of the ColorPicker container
+                SliderContainer.Size = UDim2.new(0.6, 0, 0, THEME.ControlHeight) 
+                SliderContainer.Position = UDim2.new(0.3, 0, 0, 0)
+
+                -- Resize the label inside the slider container
+                SliderControl.Label.Size = UDim2.new(0.2, 0, 1, 0) 
                 SliderControl.Label.Position = UDim2.new(0, THEME.Padding/2, 0, 0)
-                SliderControl.Label.Text = "Hue" -- Change the visible label back to "Hue"
+                SliderControl.Label.Text = "Hue"
+
+                -- Reposition the slider bar and value label within the adjusted SliderContainer size
+                SliderControl.SliderBar.Size = UDim2.new(0.65, 0, 0, 4)
+                SliderControl.SliderBar.Position = UDim2.new(0.25, 0, 0.5, -2) -- Move bar next to the label
+                
+                SliderControl.ValueLabel.Size = UDim2.new(0.15, 0, 1, 0)
+                SliderControl.ValueLabel.Position = UDim2.new(0.85, 0, 0, 0) -- Move value label to the end
+
                 SliderContainer.Name = "HueSlider"
 
                 UpdateColor(h)
