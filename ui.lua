@@ -7,12 +7,13 @@
     3. Two-Column Overflow Logic: Sections are placed in the left column first, but if adding a new section would exceed the current page height, it's moved to the right column (`LayoutOrder = 1`).
     4. **FIXES:** - Resolved the nil value error during initial tab selection using task.defer.
         - Critical Fix 1 (LocalPlayer): Used a 'repeat until' loop for LocalPlayer check.
-        - Critical Fix 2 (PlayerGui): Removed the redundant 'WaitForChild' on PlayerGui, as this often causes the *second* infinite yield in certain execution environments.
-        - **Critical Fix 3 (Gsub Error):** Added tostring() safety check in CreateButton to prevent 'attempt to call gsub method on table' error.
+        - Critical Fix 2 (PlayerGui): Used direct access to PlayerGui.
+        - **Critical Fix 3 (Gsub Method Error):** Switched from `string:gsub()` method syntax to the robust global `string.gsub()` function call to bypass executor environment issues when creating button names.
 --]]
 
 local Library = {}
 local Players = game:GetService("Players")
+local string = string -- Local reference for safety
 
 -- *** FIX 1: Ensure LocalPlayer exists. This loop replaces WaitForChild. ***
 local LocalPlayer = nil
@@ -24,7 +25,6 @@ until LocalPlayer ~= nil
 -- *** END FIX 1 ***
 
 -- *** FIX 2: PlayerGui should be accessed directly after LocalPlayer is found. ***
--- Using :WaitForChild("PlayerGui") here often causes the second infinite yield.
 local PlayerGui = LocalPlayer.PlayerGui 
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService") 
@@ -76,9 +76,10 @@ end
 local function CreateButton(parent, text, size, position, color, radius)
     local button = Instance.new("TextButton")
     
-    -- CRITICAL FIX 3: Ensure 'text' is a string before calling :gsub()
+    -- CRITICAL FIX 3: Ensure 'text' is a string and use global string.gsub 
+    -- to prevent 'attempt to call gsub method on table' error in some environments.
     local nameString = tostring(text or "")
-    button.Name = nameString:gsub("%s", "")
+    button.Name = string.gsub(nameString, "%s", "") -- Switched to string.gsub
     
     button.Text = text
     button.Size = size
