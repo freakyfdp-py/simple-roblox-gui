@@ -6,22 +6,25 @@
     2. Dynamic Section Sizing: Sections now automatically size based on the number of controls they contain.
     3. Two-Column Overflow Logic: Sections are placed in the left column first, but if adding a new section would exceed the current page height, it's moved to the right column (`LayoutOrder = 1`).
     4. **FIXES:** - Resolved the nil value error during initial tab selection using task.defer.
-        - **Critical Fix:** Replaced `Players:WaitForChild("LocalPlayer")` with a safe `repeat until` loop to eliminate the "Infinite yield possible" warning.
+        - **Critical Fix 1 (LocalPlayer):** Used a 'repeat until' loop for LocalPlayer check.
+        - **Critical Fix 2 (PlayerGui):** Removed the redundant 'WaitForChild' on PlayerGui, as this often causes the *second* infinite yield in certain execution environments.
 --]]
 
 local Library = {}
 local Players = game:GetService("Players")
 
--- *** FIX FOR "Infinite yield possible on 'Players:WaitForChild(\"LocalPlayer\")'" ***
+-- *** FIX 1: Ensure LocalPlayer exists. This loop replaces WaitForChild. ***
 local LocalPlayer = nil
 repeat
     LocalPlayer = Players.LocalPlayer
     -- Use a small task.wait() to yield control and prevent high CPU usage
     task.wait(0.1) 
 until LocalPlayer ~= nil
--- *** END FIX ***
+-- *** END FIX 1 ***
 
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+-- *** FIX 2: PlayerGui should be accessed directly after LocalPlayer is found. ***
+-- Using :WaitForChild("PlayerGui") here often causes the second infinite yield.
+local PlayerGui = LocalPlayer.PlayerGui 
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService") 
 local task = task
