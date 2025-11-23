@@ -5,12 +5,22 @@
     1. Full RGB/A Color Picker using four separate sliders (R, G, B, A).
     2. Dynamic Section Sizing: Sections now automatically size based on the number of controls they contain.
     3. Two-Column Overflow Logic: Sections are placed in the left column first, but if adding a new section would exceed the current page height, it's moved to the right column (`LayoutOrder = 1`).
-    4. **CRITICAL FIX:** Restructured `addColorPicker` to prevent a race condition: the main color update function is now called only *after* all related UI components (ColorBox, R/G/B sliders) have been created and assigned to their local variables. This fully resolves the "attempt to index nil" error.
+    4. **FIXES:** - Resolved the nil value error during initial tab selection using task.defer.
+        - **Critical Fix:** Replaced `Players:WaitForChild("LocalPlayer")` with a safe `repeat until` loop to eliminate the "Infinite yield possible" warning.
 --]]
 
 local Library = {}
 local Players = game:GetService("Players")
-local LocalPlayer = Players:WaitForChild("LocalPlayer")
+
+-- *** FIX FOR "Infinite yield possible on 'Players:WaitForChild(\"LocalPlayer\")'" ***
+local LocalPlayer = nil
+repeat
+    LocalPlayer = Players.LocalPlayer
+    -- Use a small task.wait() to yield control and prevent high CPU usage
+    task.wait(0.1) 
+until LocalPlayer ~= nil
+-- *** END FIX ***
+
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService") 
@@ -630,19 +640,12 @@ function Library.init(Title)
 
                     local finalColor = Color3.new(newR, newG, newB)
                     
-                    -- Now that we ensure this function is called *after* initialization,
-                    -- we don't need nil checks (except maybe for extra robustness, but
-                    -- in this sequential context, they are unnecessary if called correctly).
-                    
+                    -- Update ColorBox and Slider Bar Colors
                     ColorBox.BackgroundColor3 = finalColor
                     
-                    -- Color slider fills to match the component's current color value
-                    -- R-slider background should show R component (e.g., Red)
-                    if rBar then rBar.BackgroundColor3 = Color3.new(finalColor.R, 0, 0) end
-                    -- G-slider background should show G component (e.g., Green)
-                    if gBar then gBar.BackgroundColor3 = Color3.new(0, finalColor.G, 0) end
-                    -- B-slider background should show B component (e.g., Blue)
-                    if bBar then bBar.BackgroundColor3 = Color3.new(0, 0, finalColor.B) end
+                    if rBar and rBar.Fill then rBar.Fill.BackgroundColor3 = Color3.new(finalColor.R, 0, 0) end
+                    if gBar and gBar.Fill then gBar.Fill.BackgroundColor3 = Color3.new(0, finalColor.G, 0) end
+                    if bBar and bBar.Fill then bBar.Fill.BackgroundColor3 = Color3.new(0, 0, finalColor.B) end
                     
                     -- Call the user-defined callback
                     if Options.Callback then Options.Callback(finalColor, newA) end
@@ -694,7 +697,6 @@ function Library.init(Title)
                 
                 -- CRITICAL FIX: Call UpdateColorAndUI one final time 
                 -- AFTER ALL controls (including rBar, gBar, bBar) have been assigned.
-                -- This ensures that when the function runs, none of the local variables are nil.
                 UpdateColorAndUI("R", colorState.R)
                 
                 return Control -- Returns the first container (with the preview box)
