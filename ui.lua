@@ -6,8 +6,9 @@
     2. Dynamic Section Sizing: Sections now automatically size based on the number of controls they contain.
     3. Two-Column Overflow Logic: Sections are placed in the left column first, but if adding a new section would exceed the current page height, it's moved to the right column (`LayoutOrder = 1`).
     4. **FIXES:** - Resolved the nil value error during initial tab selection using task.defer.
-        - **Critical Fix 1 (LocalPlayer):** Used a 'repeat until' loop for LocalPlayer check.
-        - **Critical Fix 2 (PlayerGui):** Removed the redundant 'WaitForChild' on PlayerGui, as this often causes the *second* infinite yield in certain execution environments.
+        - Critical Fix 1 (LocalPlayer): Used a 'repeat until' loop for LocalPlayer check.
+        - Critical Fix 2 (PlayerGui): Removed the redundant 'WaitForChild' on PlayerGui, as this often causes the *second* infinite yield in certain execution environments.
+        - **Critical Fix 3 (Gsub Error):** Added tostring() safety check in CreateButton to prevent 'attempt to call gsub method on table' error.
 --]]
 
 local Library = {}
@@ -74,7 +75,11 @@ end
 
 local function CreateButton(parent, text, size, position, color, radius)
     local button = Instance.new("TextButton")
-    button.Name = text:gsub("%s", "")
+    
+    -- CRITICAL FIX 3: Ensure 'text' is a string before calling :gsub()
+    local nameString = tostring(text or "")
+    button.Name = nameString:gsub("%s", "")
+    
     button.Text = text
     button.Size = size
     button.Position = position or UDim2.fromScale(0, 0)
