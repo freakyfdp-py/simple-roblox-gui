@@ -1,9 +1,10 @@
 --[[
     Roblox UI Library - Complete Implementation (Library.lua)
     
-    FIXES IN THIS VERSION:
-    1. Removed the erroneous CheckBox.CornerRadius assignment inside Section.addCheck (resolves "not a valid member" error).
-    2. Adjusted SectionFrame width calculation to prevent sections from overflowing the screen when two are placed side-by-side.
+    NEW ENHANCEMENTS:
+    1. Increased Window size (THEME.WindowSize).
+    2. Implemented Section Flow-Down Logic using UIGridLayout for multi-row sections.
+    3. Added ZIndex and InputBlocker logic for Dropdowns to ensure they overlay and disable elements below them.
 --]]
 
 local Library = {}
@@ -25,14 +26,16 @@ local THEME = {
     ToastBg = Color3.fromRGB(20, 20, 20),
     
     -- Sizes
-    WindowSize = Vector2.new(580, 400),
+    WindowSize = Vector2.new(650, 500), -- Increased Size!
     HeaderHeight = 30,
     TabButtonWidth = 80,
     Padding = 8,
     ControlHeight = 22,
     CornerRadius = UDim.new(0, 5),
-    SectionWidth = 0.5, -- Base percentage
-    LayoutGap = 16, -- Total gap size used by UIListLayout (Padding * 2)
+    
+    -- Layout
+    SectionColumnCount = 2, -- New constant for grid layout
+    SectionContentPadding = 8,
 }
 
 -- --- HELPER FUNCTIONS ---
@@ -108,6 +111,17 @@ function Library.init(Title)
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.Parent = PlayerGui
 
+    -- Input Blocker for dropdowns (initially hidden)
+    local InputBlocker = Instance.new("Frame")
+    InputBlocker.Name = "InputBlocker"
+    InputBlocker.Size = UDim2.fromScale(1, 1)
+    InputBlocker.BackgroundTransparency = 1
+    InputBlocker.ZIndex = 4 -- Just below the dropdown (5)
+    InputBlocker.Active = true -- Key to blocking input
+    InputBlocker.Visible = false
+    InputBlocker.Parent = ScreenGui
+    Window.InputBlocker = InputBlocker
+
     -- Main Window Frame
     local W = THEME.WindowSize
     local WindowFrame = CreateBaseFrame(
@@ -157,6 +171,14 @@ function Library.init(Title)
     local PageContainer = CreateBaseFrame(ContentFrame, "PageContainer",
         UDim2.new(0.85, 0, 1, 0), UDim2.fromScale(0.15, 0), THEME.Background)
     PageContainer.BackgroundTransparency = 1
+    
+    -- FIX: Use a vertical layout for the content wrapper (SectionContainer)
+    local ContentLayout = Instance.new("UIListLayout")
+    ContentLayout.FillDirection = Enum.FillDirection.Vertical
+    ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    ContentLayout.Padding = UDim.new(0, THEME.Padding)
+    ContentLayout.Parent = PageContainer
+
     Window.PageContainer = PageContainer
     
     -- Dragging Logic
@@ -198,24 +220,40 @@ function Library.init(Title)
         TabButton.TextXAlignment = Enum.TextXAlignment.Center
         Tab.Instance = TabButton
         
-        -- Page Frame (Container for Sections)
+        -- Tab Page Frame (The wrapper for all section containers)
         local PageFrame = CreateBaseFrame(PageContainer, Name .. "Page", 
             UDim2.new(1, 0, 1, 0), nil, THEME.Background)
         PageFrame.BackgroundTransparency = 1
         PageFrame.Visible = false
         Tab.PageFrame = PageFrame
-
-        local ContentLayout = Instance.new("UIListLayout")
-        ContentLayout.FillDirection = Enum.FillDirection.Horizontal
-        ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        ContentLayout.Padding = UDim.new(0, THEME.Padding)
-        ContentLayout.Parent = PageFrame
         
+        -- FIX: Section Container to hold the grid layout
+        local SectionContainer = CreateBaseFrame(PageFrame, "SectionContainer",
+            UDim2.new(1, 0, 1, 0), UDim2.fromScale(0, 0), THEME.Background)
+        SectionContainer.BackgroundTransparency = 1
+        
+        -- FIX: UIGridLayout for Flow-Down Section System
+        local SectionGridLayout = Instance.new("UIGridLayout")
+        SectionGridLayout.CellPadding = UDim2.new(0, THEME.Padding, 0, THEME.Padding)
+        SectionGridLayout.StartCorner = Enum.StartCorner.TopLeft
+        SectionGridLayout.FillDirection = Enum.FillDirection.Horizontal
+        SectionGridLayout.FillDirectionMaxCells = THEME.SectionColumnCount -- e.g., 2 sections per row
+        SectionGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        
+        -- Calculate Cell Size: (1 / ColumnCount) scale minus pixel padding
+        -- (85% of 650 is 552.5. If we have 2 columns, each needs ~268px. )
+        local CellScale = 1 / THEME.SectionColumnCount
+        local CellWidth = UDim2.new(CellScale, -THEME.Padding, 0, 0) -- Subtract padding
+        local CellHeight = UDim2.new(0, 200, 0, 0) -- Fixed section height (can grow later)
+        
+        SectionGridLayout.CellSize = UDim2.new(CellWidth.Scale, CellWidth.Offset, CellHeight.Scale, CellHeight.Offset)
+        SectionGridLayout.Parent = SectionContainer
+        Tab.SectionContainer = SectionContainer
+
         -- Selection Logic
         function Tab:Select()
             -- Hide all pages, reset all button colors
             for _, childTab in ipairs(Window.Children) do
-                -- Check if it's a component we created before trying to access properties
                 if type(childTab) == "table" and childTab.PageFrame and childTab.Instance then 
                     childTab.PageFrame.Visible = false
                     childTab.Instance.BackgroundColor3 = THEME.Header
@@ -236,18 +274,18 @@ function Library.init(Title)
         Tab.addSection = function(SectionName, Side)
             local Section = BaseComponent(Tab, {Text = SectionName, Side = Side})
             
-            -- FIX: Adjusted S_WIDTH to allow room for the UIListLayout's padding.
-            -- (1 - (2 * Padding / PageContainerWidth)) / 2 is the theoretical correct scale
-            -- For simplicity and reliability, we use 0.5 scale and subtract half the expected pixel padding.
-            local S_WIDTH = THEME.SectionWidth 
-            local S_OFFSET = -THEME.Padding -- Subtracting half of the Padding (8 pixels) from the 50% scale width
-            
-            local SectionFrame = CreateBaseFrame(Tab.PageFrame, SectionName .. "Section",
-                UDim2.new(S_WIDTH, S_OFFSET, 1, 0), nil, THEME.Background)
-            SectionFrame.BackgroundTransparency = 1
+            -- Section Frame now uses CellSize set by the UIGridLayout
+            local SectionFrame = CreateBaseFrame(Tab.SectionContainer, SectionName .. "Section",
+                UDim2.fromScale(1, 1), nil, THEME.Background)
+            SectionFrame.BackgroundTransparency = 0
             Section.Instance = SectionFrame
             
-            local ControlContainer = SectionFrame -- Controls go directly into the section frame
+            -- Inner padding frame for controls
+            local ControlContainer = CreateBaseFrame(SectionFrame, "ControlContainer",
+                UDim2.new(1, -THEME.SectionContentPadding * 2, 1, -THEME.SectionContentPadding * 2), 
+                UDim2.new(0, THEME.SectionContentPadding, 0, THEME.SectionContentPadding),
+                THEME.Background)
+            ControlContainer.BackgroundTransparency = 1
             
             -- ListLayout for controls
             local ControlLayout = Instance.new("UIListLayout")
@@ -271,7 +309,6 @@ function Library.init(Title)
             SectionTitle.TextSize = 14
             SectionTitle.Parent = TitleFrame
             
-            -- Store a reference to the container for controls
             Section.UIContainer = ControlContainer 
 
             -- Helper function to create a basic control component container
@@ -309,7 +346,6 @@ function Library.init(Title)
                 
                 local IsChecked = false
                 
-                -- CreateButton handles the UICorner correctly
                 local CheckBox = CreateButton(Container, IsChecked and "✓" or "",
                     UDim2.new(0, 20, 0, 18), UDim2.new(1, -25, 0.5, -9), THEME.Background, UDim.new(0, 3))
                 CheckBox.TextSize = 16
@@ -415,13 +451,13 @@ function Library.init(Title)
                 local DropdownButton = CreateButton(Container, CurrentSelection,
                     UDim2.new(0.4, 0, 1, 0), UDim2.new(0.5, 0, 0, 0), THEME.Background)
                 
-                -- Dropdown list parented to the Tab's PageFrame for ZIndex control
-                local ListFrame = CreateBaseFrame(Tab.PageFrame, "DropdownList",
-                    UDim2.new(Container.Size.X.Scale, Container.Size.X.Offset, 0, 0), 
-                    UDim2.fromScale(0, 0), -- Use UDim2.fromScale(0, 0) for relative positioning
-                    THEME.ControlBg)
+                -- Dropdown list parented to the ScreenGui (or a top-level container) for true overlay
+                local ListFrame = CreateBaseFrame(ScreenGui, "DropdownList",
+                    UDim2.new(0, 0, 0, 0), -- Size will be set dynamically
+                    UDim2.fromScale(0, 0), THEME.ControlBg)
                 ListFrame.BackgroundTransparency = 0
                 ListFrame.Visible = false
+                ListFrame.ZIndex = 5 -- High ZIndex
                 
                 local ListLayout = Instance.new("UIListLayout")
                 ListLayout.FillDirection = Enum.FillDirection.Vertical
@@ -430,20 +466,32 @@ function Library.init(Title)
 
                 local function ToggleList()
                     ListOpen = not ListOpen
-                    ListFrame.Visible = ListOpen
-                    -- FIX: Calculate absolute position relative to the main PageContainer
-                    -- Container.AbsolutePosition is the start of the control.
-                    local AbsoluteX = Container.AbsolutePosition.X - Tab.PageFrame.AbsolutePosition.X
-                    local AbsoluteY = Container.AbsolutePosition.Y - Tab.PageFrame.AbsolutePosition.Y
                     
-                    -- Position the ListFrame correctly under the dropdown button
-                    ListFrame.Position = UDim2.fromOffset(AbsoluteX, AbsoluteY + Container.Size.Y.Offset)
-                    
-                    if ListOpen then ListFrame.ZIndex = 5 else ListFrame.ZIndex = 1 end
+                    Window.InputBlocker.Visible = ListOpen -- Activate/Deactivate input blocker
+
+                    if ListOpen then
+                        -- Calculate correct absolute position and size
+                        local absPos = Container.AbsolutePosition
+                        local absSize = Container.AbsoluteSize
+                        
+                        -- Set position: below the container
+                        ListFrame.Position = UDim2.fromOffset(absPos.X + 1, absPos.Y + absSize.Y + 1)
+                        
+                        -- Set size: width matches the container's width
+                        ListFrame.Size = UDim2.new(0, absSize.X * 0.4, 0, #Options.List * 20)
+                        ListFrame.Visible = true
+                    else
+                        ListFrame.Visible = false
+                    end
                 end
 
                 DropdownButton.MouseButton1Click:Connect(ToggleList)
                 
+                -- This allows clicking anywhere on the screen (the InputBlocker) to close the dropdown
+                Window.InputBlocker.MouseButton1Click:Connect(function()
+                    if ListOpen then ToggleList() end
+                end)
+
                 local function SelectOption(option)
                     CurrentSelection = option
                     DropdownButton.Text = option
@@ -457,11 +505,11 @@ function Library.init(Title)
                     optionButton.MouseEnter:Connect(function() optionButton.BackgroundColor3 = THEME.ControlHover end)
                     optionButton.MouseLeave:Connect(function() optionButton.BackgroundColor3 = THEME.ControlBg end)
                     optionButton.TextXAlignment = Enum.TextXAlignment.Left
+                    optionButton.ZIndex = 5
                     
                     optionButton.MouseButton1Click:Connect(function()
                         SelectOption(option)
                     end)
-                    ListFrame.Size = ListFrame.Size + UDim2.new(0, 0, 0, 20)
                 end
                 
                 return Control
@@ -503,7 +551,6 @@ function Library.init(Title)
                 
                 local CurrentColor = Options.Default or Color3.new(1, 0, 0)
                 
-                -- CreateButton handles the UICorner correctly
                 local ColorBox = CreateButton(Container, "", 
                     UDim2.new(0, 20, 0, 20), UDim2.new(1, -25, 0.5, -10), CurrentColor, UDim.new(0, 3))
                 
@@ -546,7 +593,6 @@ function Library.init(Title)
                 Label.TextSize = 13
                 Label.Parent = Container
 
-                -- Section label position adjustment (center the text)
                 Control.Label.TextXAlignment = Enum.TextXAlignment.Center
                 Control.Label.Size = UDim2.new(1, 0, 1, 0)
                 Control.Label.Position = UDim2.fromScale(0, 0)
@@ -567,77 +613,73 @@ function Library.init(Title)
         return Tab
     end
 
+    -- --- 3. TOAST NOTIFICATION SYSTEM ---
+
+    local ToastQueue = {} 
+    local ToastTweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local ToastVisible = false
+
+    function Library:Toast(Message, Duration)
+        table.insert(ToastQueue, {Message = Message, Duration = Duration or 3}) 
+        
+        if ToastVisible then return end
+        
+        local function ShowNextToast()
+            if #ToastQueue == 0 then
+                ToastVisible = false
+                return
+            end
+            
+            ToastVisible = true
+            local ToastData = table.remove(ToastQueue, 1)
+            
+            local ToastFrame = CreateBaseFrame(
+                PlayerGui, "Toast", 
+                UDim2.new(0, 300, 0, 50), 
+                UDim2.new(0.5, -150, 1, 60), -- Starts below screen
+                THEME.ToastBg, UDim.new(0, 8)
+            )
+            ToastFrame.ClipsDescendants = true
+            ToastFrame.BackgroundTransparency = 0.2
+            ToastFrame.BorderSizePixel = 1
+            ToastFrame.BorderColor3 = THEME.Accent
+            ToastFrame.ZIndex = 6 -- Higher than everything else
+
+            
+            local ToastLabel = Instance.new("TextLabel")
+            ToastLabel.Text = ToastData.Message
+            ToastLabel.Size = UDim2.new(1, -20, 1, -20)
+            ToastLabel.Position = UDim2.new(0, 10, 0, 10)
+            ToastLabel.TextColor3 = THEME.Text
+            ToastLabel.BackgroundTransparency = 1
+            ToastLabel.TextSize = 14
+            ToastLabel.Font = Enum.Font.SourceSans
+            ToastLabel.Parent = ToastFrame
+            
+            local StartPos = UDim2.new(0.5, -150, 1, 60)
+            local EndPos = UDim2.new(0.5, -150, 1, -60) 
+            
+            local TweenIn = TweenService:Create(ToastFrame, ToastTweenInfo, {Position = EndPos})
+            TweenIn:Play()
+            TweenIn.Completed:Wait()
+            
+            task.wait(ToastData.Duration)
+            
+            local TweenOut = TweenService:Create(ToastFrame, ToastTweenInfo, {Position = StartPos, BackgroundTransparency = 1})
+            TweenOut:Play()
+            TweenOut.Completed:Wait()
+            
+            ToastFrame:Destroy()
+            ShowNextToast()
+        end
+        
+        if not ToastVisible then
+            ShowNextToast()
+        end
+    end
+    -- End of Toast System
+
     return Window
 end
 
--- --- 3. TOAST NOTIFICATION SYSTEM ---
-
-local ToastQueue = {} -- Message queue
-local ToastTweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local ToastVisible = false
-
-function Library:Toast(Message, Duration)
-    -- Add message to queue
-    table.insert(ToastQueue, {Message = Message, Duration = Duration or 3}) 
-    
-    -- If already visible, the message will be shown after the current one fades
-    if ToastVisible then return end
-    
-    local function ShowNextToast()
-        if #ToastQueue == 0 then
-            ToastVisible = false
-            return
-        end
-        
-        ToastVisible = true
-        local ToastData = table.remove(ToastQueue, 1)
-        
-        local ToastFrame = CreateBaseFrame(
-            PlayerGui, "Toast", 
-            UDim2.new(0, 300, 0, 50), 
-            UDim2.new(0.5, -150, 1, 60), -- Starts below screen
-            THEME.ToastBg, UDim.new(0, 8)
-        )
-        ToastFrame.ClipsDescendants = true
-        ToastFrame.BackgroundTransparency = 0.2
-        ToastFrame.BorderSizePixel = 1
-        ToastFrame.BorderColor3 = THEME.Accent
-        
-        local ToastLabel = Instance.new("TextLabel")
-        ToastLabel.Text = ToastData.Message
-        ToastLabel.Size = UDim2.new(1, -20, 1, -20)
-        ToastLabel.Position = UDim2.new(0, 10, 0, 10)
-        ToastLabel.TextColor3 = THEME.Text
-        ToastLabel.BackgroundTransparency = 1
-        ToastLabel.TextSize = 14
-        ToastLabel.Font = Enum.Font.SourceSans
-        ToastLabel.Parent = ToastFrame
-        
-        local StartPos = UDim2.new(0.5, -150, 1, 60)
-        local EndPos = UDim2.new(0.5, -150, 1, -60) -- Final position just above the bottom edge
-        
-        -- Fade In (Move up)
-        local TweenIn = TweenService:Create(ToastFrame, ToastTweenInfo, {Position = EndPos})
-        TweenIn:Play()
-        TweenIn.Completed:Wait()
-        
-        -- Wait for duration
-        task.wait(ToastData.Duration)
-        
-        -- Fade Out (Move down and fade transparency)
-        local TweenOut = TweenService:Create(ToastFrame, ToastTweenInfo, {Position = StartPos, BackgroundTransparency = 1})
-        TweenOut:Play()
-        TweenOut.Completed:Wait()
-        
-        -- Clean up and process next toast
-        ToastFrame:Destroy()
-        ShowNextToast()
-    end
-    
-    if not ToastVisible then
-        ShowNextToast()
-    end
-end
-
--- Return the main Library table (which contains the init function)
 return Library
