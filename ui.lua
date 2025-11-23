@@ -1,17 +1,16 @@
 --[[
-    UI Library ModuleScript - FINAL CLOSURE FIX
+    UI Library ModuleScript - Dynamic Layout & ColorPicker
     
-    This version implements the fixes for:
-    1. Dropdown options remaining visible (closure fix and failsafe positioning).
-    2. Dropdown remaining open when switching tabs (added close logic to Tab:Select).
-    3. Removed the problematic full-screen InputBlocker.
-    4. FIX: Moved Window.CloseDropdown to be defined early in init() to prevent 'nil' error during first tab selection.
-    5. **NEW FIX:** Wrapped the initial Tab selection in `task.defer` to resolve the 'attempt to call a nil value' error when initializing the first tab.
+    This version implements:
+    1. Full RGB/A Color Picker using four separate sliders (R, G, B, A).
+    2. Dynamic Section Sizing: Sections now automatically size based on the number of controls they contain.
+    3. Two-Column Overflow Logic: Sections are placed in the left column first, but if adding a new section would exceed the current page height, it's moved to the right column (`LayoutOrder = 1`).
+    4. **FIXES:** Resolved the nil value error during initial tab selection using task.defer.
 --]]
 
 local Library = {}
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+local LocalPlayer = Players:WaitForChild("LocalPlayer")
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService") 
@@ -38,7 +37,9 @@ local THEME = {
     -- Layout
     SectionColumnCount = 2,
     SectionContentPadding = 8,
-    SectionHeight = 220, 
+    -- SectionHeight is now DYNAMIC, but we keep the control flow constants
+    ControlPadding = 2, -- Padding between controls (used in list layout)
+    SectionHeaderHeight = 15, -- Height of the section title label
 }
 
 -- --- HELPER FUNCTIONS ---
@@ -112,8 +113,6 @@ function Library.init(Title)
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.Parent = PlayerGui
 
-    -- NOTE: InputBlocker has been removed to resolve click interference.
-    
     -- Main Window Frame
     local W = THEME.WindowSize
     local WindowFrame = CreateBaseFrame(
@@ -165,31 +164,26 @@ function Library.init(Title)
     PageContainer.BackgroundTransparency = 1
     Window.PageContainer = PageContainer
     
-    -- --- GLOBAL UTILITIES (Defined early to prevent nil errors) ---
+    -- --- GLOBAL UTILITIES ---
     local currentDropdownList = nil -- Global reference to the currently open list frame
     
     -- Global function to close any currently open dropdown
     Window.CloseDropdown = function()
         if currentDropdownList then
-            -- Primary closure mechanism
             currentDropdownList.Visible = false 
-            
-            -- Failsafe: Move the frame far off-screen to guarantee it's not clickable
-            currentDropdownList.Position = UDim2.new(0, -9999, 0, -9999)
-
+            currentDropdownList.Position = UDim2.new(0, -9999, 0, -9999) -- Failsafe move
             currentDropdownList = nil
         end
     end
     -- End of Global Utilities
 
-    -- Dragging Logic
+    -- Dragging Logic (Omitted for brevity, assume it's correctly placed here)
     local Dragging = false
     local DragOffset = Vector2.zero
     
     Header.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             Dragging = true
-            -- FIX: input.Position is Vector3, convert it to Vector2 for vector math
             DragOffset = Vector2.new(input.Position.X, input.Position.Y) - WindowFrame.AbsolutePosition
             Header.LayoutOrder = 1 
         end
@@ -216,6 +210,16 @@ function Library.init(Title)
     Window.addTab = function(Name)
         local Tab = BaseComponent(Window, {Text = Name})
         
+        -- Tracking for dynamic two-column layout
+        -- Key: 0 (Left Column), 1 (Right Column)
+        Tab.ColumnHeights = {
+            [0] = 0, -- Left column height
+            [1] = 0  -- Right column height
+        }
+        
+        -- Maximum height for a single column (ContentFrame Height - Padding)
+        Tab.MaxColumnHeight = W.Y - THEME.HeaderHeight - THEME.Padding * 2
+
         local TabButton = CreateButton(TabBar, Name, 
             UDim2.new(1, 0, 0, 30), nil, THEME.Header)
         TabButton.TextXAlignment = Enum.TextXAlignment.Center
@@ -236,22 +240,29 @@ function Library.init(Title)
         local PageFrame = CreateBaseFrame(PageScroll, Name .. "Page", 
             UDim2.new(1, 0, 0, 0), nil, THEME.Background) 
         PageFrame.BackgroundTransparency = 1
-        Tab.PageFrame = PageFrame
-
+        
+        -- Main layout for PageFrame (needed to hold the UIGridLayout which handles columns)
         local ListLayout = Instance.new("UIListLayout")
         ListLayout.FillDirection = Enum.FillDirection.Vertical
         ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
         ListLayout.Parent = PageFrame
         
-        local GridCanvasEnforcer = Instance.new("UIGridLayout")
-        GridCanvasEnforcer.FillDirection = Enum.FillDirection.Horizontal
-        GridCanvasEnforcer.CellSize = UDim2.new(1, 0, 0, 1) 
-        GridCanvasEnforcer.Parent = PageFrame
-
+        -- This is the layout that controls the 2-column flow
+        local SectionGridLayout = Instance.new("UIGridLayout")
+        SectionGridLayout.Name = "SectionLayout"
+        SectionGridLayout.CellPadding = UDim2.new(0, THEME.Padding/2, 0, THEME.Padding)
+        SectionGridLayout.StartCorner = Enum.StartCorner.TopLeft
+        SectionGridLayout.FillDirection = Enum.FillDirection.Horizontal
+        SectionGridLayout.FillDirectionMaxCells = THEME.SectionColumnCount
+        SectionGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        
+        local CellScale = 1 / THEME.SectionColumnCount
+        -- Cell height is dynamic, initialized to a small value
+        SectionGridLayout.CellSize = UDim2.new(CellScale, -THEME.Padding, 0, 1) 
+        SectionGridLayout.Parent = PageFrame
 
         -- Selection Logic setup... 
         function Tab:Select()
-            -- FIX: Close any active dropdown when switching tabs (Now guaranteed to exist)
             Window.CloseDropdown() 
             
             for _, childTab in ipairs(Window.Children) do
@@ -274,26 +285,58 @@ function Library.init(Title)
         Tab.addSection = function(SectionName, Side)
             local Section = BaseComponent(Tab, {Text = SectionName, Side = Side})
             
-            -- Section Container 
+            -- CONTROL HEIGHT CALCULATION: Title + (ControlCount * ControlHeight) + (ControlCount - 1) * ControlPadding + 2*Padding
+            
+            -- Function to calculate section height based on control count (pre-insertion)
+            local function calculateSectionHeight(controlCount)
+                -- 15: Title height
+                -- 2 * THEME.SectionContentPadding: Top/Bottom Inner Padding
+                -- controlCount * THEME.ControlHeight: total control box height
+                -- (controlCount > 0 and controlCount - 1 or 0) * THEME.ControlPadding: total padding between controls
+                
+                local totalContentHeight = 
+                    THEME.SectionHeaderHeight + 
+                    (controlCount * THEME.ControlHeight) + 
+                    ((controlCount > 0 and controlCount - 1 or 0) * THEME.ControlPadding)
+
+                return totalContentHeight + (2 * THEME.SectionContentPadding)
+            end
+
+            -- Section Controls Counter (incremented by Control Methods)
+            local controlCount = 0
+            
+            -- Determine Section Placement (Left=0, Right=1)
+            local columnKey = 0 -- Default to Left Column
+            local columnLayoutOrder = 0 -- Default to Left Column (first in Grid)
+            
+            -- If Side is explicitly set, use it.
+            if Side == "Right" then
+                columnKey = 1
+                columnLayoutOrder = 1
+            else
+                -- Check for automatic overflow placement
+                -- We assume the worst-case, which is a maximum 10 controls for initial calculation
+                -- The actual height will be adjusted dynamically by the UIGridLayout in a moment
+                local assumedSectionHeight = calculateSectionHeight(1) -- Start with height of 1 control
+                local newLeftHeight = Tab.ColumnHeights[0] + assumedSectionHeight
+                local newRightHeight = Tab.ColumnHeights[1] + assumedSectionHeight
+                
+                -- Check if Left column is already full and Right is emptier
+                if newLeftHeight > Tab.MaxColumnHeight * 0.9 and Tab.ColumnHeights[1] < Tab.ColumnHeights[0] then
+                    columnKey = 1
+                    columnLayoutOrder = 1
+                end
+            end
+            
+            -- Section Container
             local SectionContainer = CreateBaseFrame(PageFrame, SectionName .. "SectionContainer",
-                UDim2.new(1, 0, 0, THEME.SectionHeight), UDim2.fromScale(0, 0), THEME.Background)
+                UDim2.new(1, 0, 0, 0), UDim2.fromScale(0, 0), THEME.Background)
             SectionContainer.BackgroundTransparency = 1
+            SectionContainer.LayoutOrder = columnLayoutOrder -- Set to 0 (left) or 1 (right)
             
-            -- UIGridLayout for Flow-Down Section System (2 columns)
-            local SectionGridLayout = Instance.new("UIGridLayout")
-            SectionGridLayout.CellPadding = UDim2.new(0, THEME.Padding/2, 0, THEME.Padding)
-            SectionGridLayout.StartCorner = Enum.StartCorner.TopLeft
-            SectionGridLayout.FillDirection = Enum.FillDirection.Horizontal
-            SectionGridLayout.FillDirectionMaxCells = THEME.SectionColumnCount
-            SectionGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-            
-            local CellScale = 1 / THEME.SectionColumnCount
-            SectionGridLayout.CellSize = UDim2.new(CellScale, -THEME.Padding, 0, THEME.SectionHeight) 
-            SectionGridLayout.Parent = SectionContainer
-            
-            -- Section Frame 
+            -- The actual Section Frame (Background Box)
             local SectionFrame = CreateBaseFrame(SectionContainer, SectionName .. "Frame",
-                UDim2.new(1, 0, 1, 0), nil, THEME.ControlBg)
+                UDim2.new(1, 0, 0, 100), nil, THEME.ControlBg) -- Initial height is dummy
             Section.Instance = SectionFrame
             
             -- Inner padding frame for controls
@@ -307,11 +350,12 @@ function Library.init(Title)
             local ControlLayout = Instance.new("UIListLayout")
             ControlLayout.FillDirection = Enum.FillDirection.Vertical
             ControlLayout.SortOrder = Enum.SortOrder.LayoutOrder
-            ControlLayout.Padding = UDim.new(0, THEME.Padding/2)
+            ControlLayout.Padding = UDim.new(0, THEME.ControlPadding) -- Use ControlPadding here
             ControlLayout.Parent = ControlContainer
             
+            -- Title Frame (15px)
             local TitleFrame = Instance.new("Frame")
-            TitleFrame.Size = UDim2.new(1, 0, 0, 15)
+            TitleFrame.Size = UDim2.new(1, 0, 0, THEME.SectionHeaderHeight)
             TitleFrame.BackgroundTransparency = 1
             TitleFrame.Parent = ControlContainer
             
@@ -330,7 +374,6 @@ function Library.init(Title)
             local function CreateControlContainer(Type, Options)
                 local Control = BaseComponent(Section, Options)
                 
-                -- FIX: Add a fallback empty string if Options.Text is nil to prevent 'gsub' error
                 local nameBase = Options.Text or ""
                 
                 local Container = CreateBaseFrame(ControlContainer, Type .. nameBase:gsub("%s", ""),
@@ -352,6 +395,18 @@ function Library.init(Title)
                 
                 Control.Label = TextLabel
                 
+                -- Update height counter
+                controlCount = controlCount + 1
+                local newHeight = calculateSectionHeight(controlCount)
+                
+                -- Adjust SectionFrame size and update Tab height tracking
+                SectionFrame.Size = UDim2.new(1, 0, 0, newHeight)
+                Tab.ColumnHeights[columnKey] = Tab.ColumnHeights[columnKey] + THEME.ControlHeight + THEME.ControlPadding
+                
+                -- Update UIGridLayout CellSize to fit the longest column so far
+                local maxColHeight = math.max(Tab.ColumnHeights[0], Tab.ColumnHeights[1]) + (THEME.SectionHeaderHeight + THEME.SectionContentPadding * 2) + THEME.Padding
+                SectionGridLayout.CellSize = UDim2.new(CellScale, -THEME.Padding, 0, maxColHeight)
+
                 return Control, Container
             end
 
@@ -359,10 +414,10 @@ function Library.init(Title)
             
             -- Checkbox 
             function Section.addCheck(Options)
+                -- controlCount is incremented inside CreateControlContainer
                 local Control, Container = CreateControlContainer("Check", Options)
                 local IsChecked = Options.Default or false
                 
-                -- CreateButton handles the CornerRadius correctly now
                 local CheckBox = CreateButton(Container, IsChecked and "✓" or "",
                     UDim2.new(0, 20, 0, 18), UDim2.new(1, -25, 0.5, -9), THEME.Background, UDim.new(0, 3))
                 CheckBox.TextSize = 16
@@ -386,8 +441,9 @@ function Library.init(Title)
                 return Control
             end
 
-            -- Slider 
+            -- Slider (Unchanged logic)
             function Section.addSlider(Options)
+                -- controlCount is incremented inside CreateControlContainer
                 local Control, Container = CreateControlContainer("Slider", Options)
                 
                 local Min = Options.Minimum or 0
@@ -453,17 +509,15 @@ function Library.init(Title)
                 
                 UpdateValue(Value) 
                 
-                -- Expose internal elements for complex controls like ColorPicker
                 Control.SliderBar = SliderBar
                 Control.ValueLabel = ValueLabel
                 
                 return Control
             end
             
-            -- Dropdown
-            -- NOTE: currentDropdownList and Window.CloseDropdown are defined globally in Library.init
-            
+            -- Dropdown (Omitted for brevity, assumed correctly placed here)
             function Section.addDropdown(Options)
+                -- controlCount is incremented inside CreateControlContainer
                 local Control, Container = CreateControlContainer("Dropdown", Options)
                 
                 local CurrentSelection = Options.List and Options.List[1] or "None"
@@ -484,26 +538,16 @@ function Library.init(Title)
                 ListLayout.Parent = ListFrame
                 
                 local function OpenList()
-                    -- Get absolute position of the button
                     local absPos = DropdownButton.AbsolutePosition
                     local absSize = DropdownButton.AbsoluteSize
                     
-                    -- TOGGLE LOGIC: 
                     if currentDropdownList == ListFrame and ListFrame.Visible then
-                        -- If THIS list is already open, close it (toggle)
                         Window.CloseDropdown()
                     else
-                        -- Close any *other* open dropdown before opening this one
                         Window.CloseDropdown()
-                        
-                        -- Set this list as the currently open one
                         currentDropdownList = ListFrame
-
-                        -- Set position: directly below the button
                         ListFrame.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y)
-                        
-                        -- Set size: width matches the button's width, height matches list items
-                        ListFrame.Size = UDim2.new(0, absSize.X, 0, #Options.List * 20)
+                        ListFrame.Size = UDim2.new(0, absSize.X, 0, #Options.List * THEME.ControlHeight)
                         ListFrame.Visible = true
                     end
                 end
@@ -513,20 +557,18 @@ function Library.init(Title)
                 local function SelectOption(option)
                     CurrentSelection = option
                     DropdownButton.Text = option
-                    -- Reliably closes the list when an option is selected.
                     Window.CloseDropdown() 
                     if Options.Callback then Options.Callback(option) end
                 end
 
                 for i, option in ipairs(Options.List) do
                     local optionButton = CreateButton(ListFrame, option, 
-                        UDim2.new(1, 0, 0, 20), nil, THEME.ControlBg)
+                        UDim2.new(1, 0, 0, THEME.ControlHeight), nil, THEME.ControlBg)
                     optionButton.MouseEnter:Connect(function() optionButton.BackgroundColor3 = THEME.ControlHover end)
                     optionButton.MouseLeave:Connect(function() optionButton.BackgroundColor3 = THEME.ControlBg end)
                     optionButton.TextXAlignment = Enum.TextXAlignment.Left
                     optionButton.ZIndex = 5
                     
-                    -- Option click handler: selects option and closes dropdown
                     optionButton.MouseButton1Click:Connect(function()
                         SelectOption(option)
                     end)
@@ -535,8 +577,9 @@ function Library.init(Title)
                 return Control
             end
             
-            -- Text Input 
+            -- Text Input (Omitted for brevity, assumed correctly placed here)
             function Section.addInput(Options)
+                -- controlCount is incremented inside CreateControlContainer
                 local Control, Container = CreateControlContainer("Input", Options)
                 
                 local TextBox = Instance.new("TextBox")
@@ -565,70 +608,99 @@ function Library.init(Title)
                 return Control
             end
 
-            -- Color Picker 
+            -- Full RGB/A Color Picker (NEW IMPLEMENTATION)
             function Section.addColorPicker(Options)
-                local Control, Container = CreateControlContainer("ColorPicker", Options)
+                -- NOTE: We call CreateControlContainer FOUR times below, one for each component (R, G, B, A).
+                -- We only use the first Control container for the color preview box.
                 
-                local CurrentColor = Options.Default or Color3.new(1, 0, 0)
-                local h, s, v = CurrentColor:ToHSV()
-                
-                local ColorBox = CreateButton(Container, "", 
-                    UDim2.new(0, 20, 0, 20), UDim2.new(1, -25, 0.5, -10), CurrentColor, UDim.new(0, 3))
-                ColorBox.BackgroundColor3 = CurrentColor
-                
-                local function UpdateColor(newHue)
-                    h = newHue
-                    CurrentColor = Color3.fromHSV(h, 1, 1) 
-                    ColorBox.BackgroundColor3 = CurrentColor
-                    
-                    if Options.Callback then Options.Callback(CurrentColor) end
-                end
-                
-                -- Simple Slider for Hue (0 to 1)
-                local ColorSliderOptions = {
-                    Minimum = 0,
-                    Maximum = 1,
-                    Default = h,
-                    Callback = UpdateColor,
-                    -- FIX: This Text field prevents the 'gsub' error
-                    Text = "HueSliderControl" 
+                local initialColor = Options.Default or Color3.new(1, 0, 0)
+                local initialAlpha = Options.DefaultAlpha or 1.0
+
+                local colorState = {
+                    R = initialColor.R * 255,
+                    G = initialColor.G * 255,
+                    B = initialColor.B * 255,
+                    A = initialAlpha * 100
                 }
-
-                local SliderControl = Section.addSlider(ColorSliderOptions) 
-                local SliderContainer = SliderControl.Instance
-
-                -- FINAL FIX for the 'Size' error: Adjust the internal components of the slider
-                -- instead of trying to move the whole container, which is subject to the ListLayout.
-
-                -- Move the slider container to the right side of the ColorPicker container
-                SliderContainer.Size = UDim2.new(0.6, 0, 0, THEME.ControlHeight) 
-                SliderContainer.Position = UDim2.new(0.3, 0, 0, 0)
-
-                -- Resize the label inside the slider container
-                SliderControl.Label.Size = UDim2.new(0.2, 0, 1, 0) 
-                SliderControl.Label.Position = UDim2.new(0, THEME.Padding/2, 0, 0)
-                SliderControl.Label.Text = "Hue"
-
-                -- Reposition the slider bar and value label within the adjusted SliderContainer size
-                SliderControl.SliderBar.Size = UDim2.new(0.65, 0, 0, 4)
-                SliderControl.SliderBar.Position = UDim2.new(0.25, 0, 0.5, -2) -- Move bar next to the label
                 
-                SliderControl.ValueLabel.Size = UDim2.new(0.15, 0, 1, 0)
-                SliderControl.ValueLabel.Position = UDim2.new(0.85, 0, 0, 0) -- Move value label to the end
+                -- This function handles all UI updates and callback calls
+                local function UpdateColorAndUI(component, value)
+                    colorState[component] = value
+                    
+                    local newR = colorState.R / 255
+                    local newG = colorState.G / 255
+                    local newB = colorState.B / 255
+                    local newA = colorState.A / 100
 
-                SliderContainer.Name = "HueSlider"
+                    local finalColor = Color3.new(newR, newG, newB)
+                    
+                    -- Update the preview box
+                    ColorBox.BackgroundColor3 = finalColor
+                    
+                    -- Update the background color for R, G, B sliders
+                    rBar.BackgroundColor3 = Color3.new(finalColor.R, 0, 0)
+                    gBar.BackgroundColor3 = Color3.new(0, finalColor.G, 0)
+                    bBar.BackgroundColor3 = Color3.new(0, 0, finalColor.B)
 
-                UpdateColor(h)
+                    if Options.Callback then Options.Callback(finalColor, newA) end
+                end
+
+                -- 1. Color Preview Box (Uses the Control container from the first call)
+                local Control, Container = CreateControlContainer("ColorPicker", Options)
+                Container.BackgroundTransparency = 1 -- Hide the container's background
+                Control.Label.Text = Options.Text or "Color"
                 
-                return Control
+                local ColorBox = CreateBaseFrame(Container, "ColorPreview", 
+                    UDim2.new(0, 20, 0, 20), UDim2.new(1, -25, 0.5, -10), initialColor, UDim.new(0, 3))
+                ColorBox.BackgroundColor3 = initialColor
+                
+                -- 2. Red Slider (R)
+                local RControl = Section.addSlider({
+                    Text = "R", Minimum = 0, Maximum = 255, Default = colorState.R, Postfix = "",
+                    Callback = function(val) UpdateColorAndUI("R", val) end
+                })
+                local rBar = RControl.SliderBar
+                RControl.SliderBar.BackgroundTransparency = 0.5
+                RControl.ValueLabel.TextColor3 = Color3.new(1, 0, 0)
+                
+                -- 3. Green Slider (G)
+                local GControl = Section.addSlider({
+                    Text = "G", Minimum = 0, Maximum = 255, Default = colorState.G, Postfix = "",
+                    Callback = function(val) UpdateColorAndUI("G", val) end
+                })
+                local gBar = GControl.SliderBar
+                GControl.SliderBar.BackgroundTransparency = 0.5
+                GControl.ValueLabel.TextColor3 = Color3.new(0, 1, 0)
+
+                -- 4. Blue Slider (B)
+                local BControl = Section.addSlider({
+                    Text = "B", Minimum = 0, Maximum = 255, Default = colorState.B, Postfix = "",
+                    Callback = function(val) UpdateColorAndUI("B", val) end
+                })
+                local bBar = BControl.SliderBar
+                BControl.SliderBar.BackgroundTransparency = 0.5
+                BControl.ValueLabel.TextColor3 = Color3.new(0, 0, 1)
+
+                -- 5. Alpha Slider (A)
+                local AControl = Section.addSlider({
+                    Text = "A", Minimum = 0, Maximum = 100, Default = colorState.A, Postfix = "%",
+                    Callback = function(val) UpdateColorAndUI("A", val) end
+                })
+                AControl.ValueLabel.TextColor3 = THEME.Text
+                AControl.SliderBar.BackgroundColor3 = THEME.Background
+                
+                -- Initial color setting to ensure slider backgrounds are set correctly
+                UpdateColorAndUI("R", colorState.R)
+                
+                return Control -- Returns the first container (with the preview box)
             end
 
             -- Button 
             function Section.addButton(Options)
+                -- controlCount is incremented inside CreateControlContainer
                 local Control, Container = CreateControlContainer("Button", Options)
                 Container.BackgroundTransparency = 1
                 
-                -- CreateButton handles the CornerRadius correctly now
                 local Button = CreateButton(Container, Options.Text,
                     UDim2.new(1, 0, 1, 0), nil, THEME.Accent)
                 
@@ -642,6 +714,7 @@ function Library.init(Title)
 
             -- Label 
             function Section.addLabel(Options)
+                -- controlCount is incremented inside CreateControlContainer
                 local Control, Container = CreateControlContainer("Label", Options)
                 Container.BackgroundTransparency = 1
                 
@@ -662,19 +735,13 @@ function Library.init(Title)
                 return Control
             end
             
-            if Side == "Right" then
-                SectionContainer.LayoutOrder = 1 
-            end
-            
             return Tab:AddChild(Section)
         end
         
         Window:AddChild(Tab)
         
-        -- Select the first tab automatically
+        -- Select the first tab automatically (Safe Initialization)
         if #Window.Children == 1 then
-            -- FIX: Use task.defer to ensure the Tab:Select function runs AFTER 
-            -- the current Library.init thread has finished and Window.CloseDropdown is fully defined.
             task.defer(function()
                 Window.Children[1]:Select()
             end)
@@ -684,7 +751,7 @@ function Library.init(Title)
     end
 
     -- --- 3. TOAST NOTIFICATION SYSTEM ---
-
+    -- (Omitted for brevity, assumed correctly placed here)
     local ToastQueue = {} 
     local ToastTweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     local ToastVisible = false
@@ -747,7 +814,6 @@ function Library.init(Title)
             ShowNextToast()
         end
     end
-    -- End of Toast System
 
     return Window
 end
