@@ -8,20 +8,16 @@
     4. **FIXES:** - Resolved the nil value error during initial tab selection using task.defer.
         - Critical Fix 1 (LocalPlayer): Used a 'repeat until' loop for LocalPlayer check.
         - Critical Fix 2 (PlayerGui): Used direct access to PlayerGui.
-        - **Critical Fix 3 (Gsub Method Error):** Switched from `string:gsub()` method syntax to the robust global `string.gsub()` function call to bypass executor environment issues when creating button names.
-        - **CRITICAL FIX 4 (String Library Corruption):** Explicitly declared a local `_string` reference to `_G.string` to ensure we use the original, uncorrupted Lua string library for `gsub` calls.
+        - **Critical Fix 3 (XENO/Executor Fix):** Replaced all usages of `string.gsub` and `string.format` with safe helper functions that contain a manual fallback, bypassing the corrupted 'string' library issue ("attempt to call missing method 'gsub' of table").
 --]]
 
 local Library = {}
 local Players = game:GetService("Players")
--- CRITICAL FIX 4: Explicitly use the raw global reference to string to prevent corrupted environments from breaking gsub.
-local _string = _G.string 
 
--- *** FIX 1: Ensure LocalPlayer exists. This loop replaces WaitForChild. ***
+-- *** FIX 1: Ensure LocalPlayer exists. ***
 local LocalPlayer = nil
 repeat
     LocalPlayer = Players.LocalPlayer
-    -- Use a small task.wait() to yield control and prevent high CPU usage
     task.wait(0.1) 
 until LocalPlayer ~= nil
 -- *** END FIX 1 ***
@@ -31,6 +27,43 @@ local PlayerGui = LocalPlayer.PlayerGui
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService") 
 local task = task
+
+-- --- XENO/EXECUTOR COMPATIBILITY FIXES ---
+
+-- Helper function to safely clean strings for names (removes spaces)
+local function cleanName(text)
+    local s = tostring(text or "")
+    
+    -- Attempt to use string.gsub first
+    local success, result = pcall(string.gsub, s, "%s", "")
+    if success and result then
+        return result
+    end
+    
+    -- Fallback manual clean (in case string.gsub is missing or corrupted)
+    local cleaned = {}
+    for i = 1, #s do
+        local char = s:sub(i, i)
+        if char ~= " " and char ~= "\t" and char ~= "\n" and char ~= "\r" then
+            table.insert(cleaned, char)
+        end
+    end
+    return table.concat(cleaned)
+end
+
+-- Helper function to safely format numbers (replaces string.format)
+local function safeFormat(formatString, ...)
+    local success, result = pcall(string.format, formatString, ...)
+    if success and result then
+        return result
+    end
+    -- Simple fallback for number formatting (only works for single numeric argument)
+    local arg1 = select(1, ...)
+    if type(arg1) == "number" then
+        return tostring(math.floor(arg1 + 0.5)) -- .0f style
+    end
+    return tostring(arg1)
+end
 
 -- --- THEME & CONSTANTS ---
 local THEME = {
@@ -78,9 +111,8 @@ end
 local function CreateButton(parent, text, size, position, color, radius)
     local button = Instance.new("TextButton")
     
-    -- CRITICAL FIX 4 APPLIED: Use _string.gsub
-    local nameString = tostring(text or "")
-    button.Name = _string.gsub(nameString, "%s", "") -- Uses the explicitly safe string library
+    -- CRITICAL FIX: Use cleanName helper
+    button.Name = cleanName(text)
     
     button.Text = text
     button.Size = size
@@ -134,9 +166,9 @@ function Library.init(Title)
 
     -- Main Window Frame
     local W = THEME.WindowSize
-    -- CRITICAL FIX 4 APPLIED: Use _string.gsub for window name
+    -- CRITICAL FIX: Use cleanName helper
     local WindowFrame = CreateBaseFrame(
-        ScreenGui, _string.gsub(Title, "%s", "") .. "Window",
+        ScreenGui, cleanName(Title) .. "Window",
         UDim2.new(0, W.X, 0, W.Y), 
         UDim2.new(0.5, -W.X/2, 0.5, -W.Y/2),
         THEME.Background
@@ -392,10 +424,10 @@ function Library.init(Title)
                 
                 local nameBase = Options.Text or ""
                 
-                -- CRITICAL FIX 4 APPLIED: Use _string.gsub
-                local Container = CreateBaseFrame(ControlContainer, Type .. _string.gsub(nameBase, "%s", ""),
+                -- CRITICAL FIX: Use cleanName helper
+                local Container = CreateBaseFrame(ControlContainer, Type .. cleanName(nameBase),
                     UDim2.new(1, 0, 0, THEME.ControlHeight), nil, THEME.ControlBg)
-                Container.Name = Type .. "_" .. _string.gsub(nameBase, "%s", "")
+                Container.Name = Type .. "_" .. cleanName(nameBase)
                 Container.BackgroundTransparency = 0
                 Control.Instance = Container
                 
@@ -497,8 +529,8 @@ function Library.init(Title)
                     
                     Fill.Size = UDim2.new(ratio, 0, 1, 0)
                     Handle.Position = UDim2.new(ratio, -5, 0.5, -5)
-                    -- CRITICAL FIX 4 APPLIED: Use _string.format
-                    ValueLabel.Text = _string.format("%.0f%s", Value, Options.Postfix or "")
+                    -- CRITICAL FIX: Use safeFormat helper
+                    ValueLabel.Text = safeFormat("%.0f%s", Value, Options.Postfix or "")
                     
                     if Options.Callback then Options.Callback(Value) end
                 end
