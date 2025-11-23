@@ -9,11 +9,13 @@
         - Critical Fix 1 (LocalPlayer): Used a 'repeat until' loop for LocalPlayer check.
         - Critical Fix 2 (PlayerGui): Used direct access to PlayerGui.
         - **Critical Fix 3 (Gsub Method Error):** Switched from `string:gsub()` method syntax to the robust global `string.gsub()` function call to bypass executor environment issues when creating button names.
+        - **CRITICAL FIX 4 (String Library Corruption):** Explicitly declared a local `_string` reference to `_G.string` to ensure we use the original, uncorrupted Lua string library for `gsub` calls.
 --]]
 
 local Library = {}
 local Players = game:GetService("Players")
-local string = string -- Local reference for safety
+-- CRITICAL FIX 4: Explicitly use the raw global reference to string to prevent corrupted environments from breaking gsub.
+local _string = _G.string 
 
 -- *** FIX 1: Ensure LocalPlayer exists. This loop replaces WaitForChild. ***
 local LocalPlayer = nil
@@ -76,10 +78,9 @@ end
 local function CreateButton(parent, text, size, position, color, radius)
     local button = Instance.new("TextButton")
     
-    -- CRITICAL FIX 3: Ensure 'text' is a string and use global string.gsub 
-    -- to prevent 'attempt to call gsub method on table' error in some environments.
+    -- CRITICAL FIX 4 APPLIED: Use _string.gsub
     local nameString = tostring(text or "")
-    button.Name = string.gsub(nameString, "%s", "") -- Switched to string.gsub
+    button.Name = _string.gsub(nameString, "%s", "") -- Uses the explicitly safe string library
     
     button.Text = text
     button.Size = size
@@ -133,8 +134,9 @@ function Library.init(Title)
 
     -- Main Window Frame
     local W = THEME.WindowSize
+    -- CRITICAL FIX 4 APPLIED: Use _string.gsub for window name
     local WindowFrame = CreateBaseFrame(
-        ScreenGui, Title:gsub("%s", "") .. "Window",
+        ScreenGui, _string.gsub(Title, "%s", "") .. "Window",
         UDim2.new(0, W.X, 0, W.Y), 
         UDim2.new(0.5, -W.X/2, 0.5, -W.Y/2),
         THEME.Background
@@ -164,6 +166,7 @@ function Library.init(Title)
         UDim2.new(0, 0, 0, THEME.HeaderHeight),
         THEME.Background
     )
+    ContentFrame.BackgroundTransparency = 1 -- Added for cleaner look
     Window.ContentFrame = ContentFrame
     
     -- Tab Bar Area
@@ -389,9 +392,10 @@ function Library.init(Title)
                 
                 local nameBase = Options.Text or ""
                 
-                local Container = CreateBaseFrame(ControlContainer, Type .. nameBase:gsub("%s", ""),
+                -- CRITICAL FIX 4 APPLIED: Use _string.gsub
+                local Container = CreateBaseFrame(ControlContainer, Type .. _string.gsub(nameBase, "%s", ""),
                     UDim2.new(1, 0, 0, THEME.ControlHeight), nil, THEME.ControlBg)
-                Container.Name = Type .. "_" .. nameBase:gsub("%s", "")
+                Container.Name = Type .. "_" .. _string.gsub(nameBase, "%s", "")
                 Container.BackgroundTransparency = 0
                 Control.Instance = Container
                 
@@ -482,6 +486,7 @@ function Library.init(Title)
                 ValueLabel.TextColor3 = THEME.Accent
                 ValueLabel.BackgroundTransparency = 1
                 ValueLabel.Font = Enum.Font.SourceSans
+                Label.TextXAlignment = Enum.TextXAlignment.Right
                 ValueLabel.TextSize = 13
                 ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
                 ValueLabel.Parent = Container
@@ -492,7 +497,8 @@ function Library.init(Title)
                     
                     Fill.Size = UDim2.new(ratio, 0, 1, 0)
                     Handle.Position = UDim2.new(ratio, -5, 0.5, -5)
-                    ValueLabel.Text = string.format("%.0f%s", Value, Options.Postfix or "")
+                    -- CRITICAL FIX 4 APPLIED: Use _string.format
+                    ValueLabel.Text = _string.format("%.0f%s", Value, Options.Postfix or "")
                     
                     if Options.Callback then Options.Callback(Value) end
                 end
