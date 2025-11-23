@@ -1,10 +1,9 @@
 --[[
     Roblox UI Library - Complete Implementation (Library.lua)
     
-    MAJOR FIXES & ENHANCEMENTS IN THIS VERSION:
-    1. Increased Window Size and implemented a SCROLLING FRAME for the content area to prevent sections from going off-screen (flow-down fix).
-    2. Fixed Dropdown list positioning to accurately spawn below the button regardless of window position/scroll.
-    3. Implemented a basic, working Color Picker (H/S/V representation).
+    FINAL FIXES:
+    1. Fixed "MouseButton1Click is not a valid member of Frame" on InputBlocker by using the InputBegan event.
+    2. Verified no direct assignment of 'CornerRadius' to 'TextButton' remains in the code.
 --]]
 
 local Library = {}
@@ -26,7 +25,7 @@ local THEME = {
     ToastBg = Color3.fromRGB(20, 20, 20),
     
     -- Sizes
-    WindowSize = Vector2.new(700, 550), -- Increased Size
+    WindowSize = Vector2.new(700, 550), 
     HeaderHeight = 30,
     Padding = 8,
     ControlHeight = 22,
@@ -35,7 +34,7 @@ local THEME = {
     -- Layout
     SectionColumnCount = 2,
     SectionContentPadding = 8,
-    SectionHeight = 220, -- Fixed height for sections to enable grid layout
+    SectionHeight = 220, 
 }
 
 -- --- HELPER FUNCTIONS ---
@@ -70,6 +69,7 @@ local function CreateButton(parent, text, size, position, color, radius)
     button.TextSize = 14
     button.BorderSizePixel = 0
     
+    -- CRITICAL: UICorner instance handles the rounding
     local corner = Instance.new("UICorner")
     corner.CornerRadius = radius or THEME.CornerRadius
     corner.Parent = button
@@ -111,7 +111,7 @@ function Library.init(Title)
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.Parent = PlayerGui
 
-    -- Input Blocker for dropdowns (parented to ScreenGui)
+    -- Input Blocker for dropdowns 
     local InputBlocker = Instance.new("Frame")
     InputBlocker.Name = "InputBlocker"
     InputBlocker.Size = UDim2.fromScale(1, 1)
@@ -121,6 +121,16 @@ function Library.init(Title)
     InputBlocker.Visible = false
     InputBlocker.Parent = ScreenGui
     Window.InputBlocker = InputBlocker
+    
+    -- FIX 1: Use InputBegan to capture clicks on the InputBlocker frame
+    InputBlocker.InputBegan:Connect(function(input)
+        if Window.CloseDropdown and InputBlocker.Visible then
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                Window.CloseDropdown()
+            end
+        end
+    end)
+    
 
     -- Main Window Frame
     local W = THEME.WindowSize
@@ -138,7 +148,6 @@ function Library.init(Title)
         UDim2.new(1, 0, 0, THEME.HeaderHeight), nil, THEME.Header)
     Header.Active = true
     
-    -- Title Label setup... (omitted for brevity)
     local TitleLabel = Instance.new("TextLabel")
     TitleLabel.Text = Title
     TitleLabel.Size = UDim2.new(1, -10, 1, 0)
@@ -162,7 +171,6 @@ function Library.init(Title)
     local TabBar = CreateBaseFrame(ContentFrame, "TabBar",
         UDim2.new(0.15, 0, 1, 0), UDim2.fromScale(0, 0), THEME.Header)
     
-    -- Tab Layout setup... (omitted for brevity)
     local TabListLayout = Instance.new("UIListLayout")
     TabListLayout.FillDirection = Enum.FillDirection.Vertical
     TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -207,7 +215,6 @@ function Library.init(Title)
     Window.addTab = function(Name)
         local Tab = BaseComponent(Window, {Text = Name})
         
-        -- Tab Button setup... (omitted for brevity)
         local TabButton = CreateButton(TabBar, Name, 
             UDim2.new(1, 0, 0, 30), nil, THEME.Header)
         TabButton.TextXAlignment = Enum.TextXAlignment.Center
@@ -217,7 +224,7 @@ function Library.init(Title)
         local PageScroll = Instance.new("ScrollingFrame")
         PageScroll.Name = Name .. "PageScroll"
         PageScroll.Size = UDim2.new(1, 0, 1, 0)
-        PageScroll.CanvasSize = UDim2.new(0, 0, 0, 0) -- Set dynamically by UILayout
+        PageScroll.CanvasSize = UDim2.new(0, 0, 0, 0) 
         PageScroll.BackgroundTransparency = 1
         PageScroll.ScrollBarThickness = 6
         PageScroll.Visible = false
@@ -226,24 +233,22 @@ function Library.init(Title)
         
         -- Page Frame (Container for Sections, inside the scroll frame)
         local PageFrame = CreateBaseFrame(PageScroll, Name .. "Page", 
-            UDim2.new(1, 0, 0, 0), nil, THEME.Background) -- Height will be automatic
+            UDim2.new(1, 0, 0, 0), nil, THEME.Background) 
         PageFrame.BackgroundTransparency = 1
         Tab.PageFrame = PageFrame
 
-        -- UIListLayout to make PageFrame size dynamically fit contents
         local ListLayout = Instance.new("UIListLayout")
         ListLayout.FillDirection = Enum.FillDirection.Vertical
         ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
         ListLayout.Parent = PageFrame
         
-        -- UIGridLayout to enforce the scrollable CanvasSize
         local GridCanvasEnforcer = Instance.new("UIGridLayout")
         GridCanvasEnforcer.FillDirection = Enum.FillDirection.Horizontal
-        GridCanvasEnforcer.CellSize = UDim2.new(1, 0, 0, 1) -- Set small cell size
+        GridCanvasEnforcer.CellSize = UDim2.new(1, 0, 0, 1) 
         GridCanvasEnforcer.Parent = PageFrame
 
 
-        -- Selection Logic setup... (omitted for brevity)
+        -- Selection Logic setup... 
         function Tab:Select()
             for _, childTab in ipairs(Window.Children) do
                 if type(childTab) == "table" and childTab.PageScroll and childTab.Instance then 
@@ -265,7 +270,7 @@ function Library.init(Title)
         Tab.addSection = function(SectionName, Side)
             local Section = BaseComponent(Tab, {Text = SectionName, Side = Side})
             
-            -- Section Container (Wrapper for UIGridLayout)
+            -- Section Container 
             local SectionContainer = CreateBaseFrame(PageFrame, SectionName .. "SectionContainer",
                 UDim2.new(1, 0, 0, THEME.SectionHeight), UDim2.fromScale(0, 0), THEME.Background)
             SectionContainer.BackgroundTransparency = 1
@@ -278,12 +283,11 @@ function Library.init(Title)
             SectionGridLayout.FillDirectionMaxCells = THEME.SectionColumnCount
             SectionGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
             
-            -- Cell Size: Width must account for padding, Height is fixed.
             local CellScale = 1 / THEME.SectionColumnCount
             SectionGridLayout.CellSize = UDim2.new(CellScale, -THEME.Padding, 0, THEME.SectionHeight) 
             SectionGridLayout.Parent = SectionContainer
             
-            -- Section Frame (Actual section content)
+            -- Section Frame 
             local SectionFrame = CreateBaseFrame(SectionContainer, SectionName .. "Frame",
                 UDim2.new(1, 0, 1, 0), nil, THEME.ControlBg)
             Section.Instance = SectionFrame
@@ -302,7 +306,6 @@ function Library.init(Title)
             ControlLayout.Padding = UDim.new(0, THEME.Padding/2)
             ControlLayout.Parent = ControlContainer
             
-            -- Section Title Label setup... (omitted for brevity)
             local TitleFrame = Instance.new("Frame")
             TitleFrame.Size = UDim2.new(1, 0, 0, 15)
             TitleFrame.BackgroundTransparency = 1
@@ -329,7 +332,6 @@ function Library.init(Title)
                 Container.BackgroundTransparency = 0
                 Control.Instance = Container
                 
-                -- Control Label setup... (omitted for brevity)
                 local TextLabel = Instance.new("TextLabel")
                 TextLabel.Text = Options.Text or Type
                 TextLabel.Size = UDim2.new(0.5, -5, 1, 0)
@@ -348,7 +350,7 @@ function Library.init(Title)
 
             -- --- 4. CONTROL METHODS ---
             
-            -- Checkbox (omitted for brevity, no changes)
+            -- Checkbox 
             function Section.addCheck(Options)
                 local Control, Container = CreateControlContainer("Check", Options)
                 local IsChecked = Options.Default or false
@@ -376,7 +378,7 @@ function Library.init(Title)
                 return Control
             end
 
-            -- Slider (omitted for brevity, no changes)
+            -- Slider 
             function Section.addSlider(Options)
                 local Control, Container = CreateControlContainer("Slider", Options)
                 
@@ -441,16 +443,26 @@ function Library.init(Title)
                     end
                 end)
                 
-                UpdateValue(Value) -- Initial call
+                UpdateValue(Value) 
                 return Control
             end
             
             -- Dropdown
+            -- Global reference for closing any open dropdown
+            local currentDropdownList = nil
+            
+            Window.CloseDropdown = function()
+                if currentDropdownList then
+                    currentDropdownList.Visible = false
+                    currentDropdownList = nil
+                    Window.InputBlocker.Visible = false
+                end
+            end
+            
             function Section.addDropdown(Options)
                 local Control, Container = CreateControlContainer("Dropdown", Options)
                 
                 local CurrentSelection = Options.List and Options.List[1] or "None"
-                local ListOpen = false
                 
                 local DropdownButton = CreateButton(Container, CurrentSelection,
                     UDim2.new(0.4, 0, 1, 0), UDim2.new(0.5, 0, 0, 0), THEME.Background)
@@ -467,42 +479,31 @@ function Library.init(Title)
                 ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
                 ListLayout.Parent = ListFrame
                 
-                local function CloseList()
-                    ListOpen = false
-                    ListFrame.Visible = false
-                    Window.InputBlocker.Visible = false
+                local function OpenList()
+                    -- Close any previously open dropdown
+                    Window.CloseDropdown()
+                    
+                    currentDropdownList = ListFrame
+                    Window.InputBlocker.Visible = true
+
+                    -- Calculate correct absolute position and size
+                    local absPos = DropdownButton.AbsolutePosition
+                    local absSize = DropdownButton.AbsoluteSize
+                    
+                    -- Set position: directly below the button
+                    ListFrame.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y)
+                    
+                    -- Set size: width matches the button's width, height matches list items
+                    ListFrame.Size = UDim2.new(0, absSize.X, 0, #Options.List * 20)
+                    ListFrame.Visible = true
                 end
 
-                local function ToggleList()
-                    if ListOpen then
-                        CloseList()
-                    else
-                        ListOpen = true
-                        Window.InputBlocker.Visible = true
-
-                        -- Calculate correct absolute position and size
-                        local absPos = DropdownButton.AbsolutePosition
-                        local absSize = DropdownButton.AbsoluteSize
-                        
-                        -- Set position: directly below the button
-                        ListFrame.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y)
-                        
-                        -- Set size: width matches the button's width, height matches list items
-                        ListFrame.Size = UDim2.new(0, absSize.X, 0, #Options.List * 20)
-                        ListFrame.Visible = true
-                    end
-                end
-
-                DropdownButton.MouseButton1Click:Connect(ToggleList)
+                DropdownButton.MouseButton1Click:Connect(OpenList)
                 
-                Window.InputBlocker.MouseButton1Click:Connect(function()
-                    if ListOpen then CloseList() end
-                end)
-
                 local function SelectOption(option)
                     CurrentSelection = option
                     DropdownButton.Text = option
-                    CloseList()
+                    Window.CloseDropdown()
                     if Options.Callback then Options.Callback(option) end
                 end
 
@@ -522,7 +523,7 @@ function Library.init(Title)
                 return Control
             end
             
-            -- Text Input (omitted for brevity, no changes)
+            -- Text Input 
             function Section.addInput(Options)
                 local Control, Container = CreateControlContainer("Input", Options)
                 
@@ -552,20 +553,20 @@ function Library.init(Title)
                 return Control
             end
 
-            -- Color Picker (NOW FUNCTIONAL)
+            -- Color Picker 
             function Section.addColorPicker(Options)
                 local Control, Container = CreateControlContainer("ColorPicker", Options)
                 
                 local CurrentColor = Options.Default or Color3.new(1, 0, 0)
-                local Hue = 0 -- 0 to 1
+                local h, s, v = CurrentColor:ToHSV()
                 
                 local ColorBox = CreateButton(Container, "", 
                     UDim2.new(0, 20, 0, 20), UDim2.new(1, -25, 0.5, -10), CurrentColor, UDim.new(0, 3))
                 ColorBox.BackgroundColor3 = CurrentColor
                 
                 local function UpdateColor(newHue)
-                    Hue = newHue
-                    CurrentColor = Color3.fromHSV(Hue, 1, 1) -- Set saturation and value to max for simple demo
+                    h = newHue
+                    CurrentColor = Color3.fromHSV(h, 1, 1) 
                     ColorBox.BackgroundColor3 = CurrentColor
                     
                     if Options.Callback then Options.Callback(CurrentColor) end
@@ -575,26 +576,24 @@ function Library.init(Title)
                 local ColorSliderOptions = {
                     Minimum = 0,
                     Maximum = 1,
-                    Default = Hue,
+                    Default = h,
                     Callback = UpdateColor,
                 }
 
-                -- We reuse the slider logic, creating it externally for color selection
                 local SliderControl, SliderContainer = Section.addSlider(ColorSliderOptions)
-                SliderContainer.Size = UDim2.new(1, 0, 0, THEME.ControlHeight) -- Stretch the slider to fit
+                SliderContainer.Size = UDim2.new(1, 0, 0, THEME.ControlHeight) 
                 SliderContainer.Position = UDim2.new(0, 0, 0, 0)
-                SliderContainer.Parent = Container -- Reparenting to keep it within the color picker control
+                SliderContainer.Parent = Container 
 
-                -- Rename/reposition the elements to reflect their function
                 SliderControl.Label.Text = "Hue"
                 SliderContainer.Name = "HueSlider"
 
-                UpdateColor(Hue)
+                UpdateColor(h)
                 
                 return Control
             end
 
-            -- Button (omitted for brevity, no changes)
+            -- Button 
             function Section.addButton(Options)
                 local Control, Container = CreateControlContainer("Button", Options)
                 Container.BackgroundTransparency = 1
@@ -610,7 +609,7 @@ function Library.init(Title)
                 return Control
             end
 
-            -- Label (omitted for brevity, no changes)
+            -- Label 
             function Section.addLabel(Options)
                 local Control, Container = CreateControlContainer("Label", Options)
                 Container.BackgroundTransparency = 1
@@ -646,7 +645,6 @@ function Library.init(Title)
     end
 
     -- --- 3. TOAST NOTIFICATION SYSTEM ---
-    -- (omitted for brevity, no changes)
 
     local ToastQueue = {} 
     local ToastTweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
