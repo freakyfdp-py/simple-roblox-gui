@@ -6,9 +6,7 @@ local Players = game:GetService("Players")
 
 local function new(class, props)
     local o = Instance.new(class)
-    for k, v in pairs(props or {}) do
-        o[k] = v
-    end
+    for k, v in pairs(props or {}) do o[k] = v end
     return o
 end
 
@@ -95,7 +93,16 @@ function UILib.init(title)
             TextColor3 = Color3.new(1, 1, 1)
         })
 
-        local page = new("ScrollingFrame", { Parent = pages, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6, Visible = false })
+        local page = new("ScrollingFrame", {
+            Parent = pages,
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            ScrollBarThickness = 6,
+            Visible = false
+        })
+
         local pageLayout = new("UIListLayout", { Parent = page, Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder })
         new("UIPadding", { Parent = page, PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) })
 
@@ -107,13 +114,24 @@ function UILib.init(title)
 
         function Tab:addSection(secName)
             local Sec = {}
+
             local holder = new("Frame", { Parent = page, Size = UDim2.new(1, -20, 0, 50), BackgroundColor3 = Color3.fromRGB(32, 32, 32), BorderSizePixel = 0 })
             new("TextLabel", { Parent = holder, Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = Color3.fromRGB(45, 45, 45), BorderSizePixel = 0, Font = Enum.Font.GothamBold, Text = secName, TextSize = 14, TextColor3 = Color3.new(1, 1, 1) })
+
             local body = new("Frame", { Parent = holder, Position = UDim2.new(0, 0, 0, 28), Size = UDim2.new(1, 0, 1, -28), BackgroundTransparency = 1 })
             local lay = new("UIListLayout", { Parent = body, Padding = UDim.new(0, 7) })
 
-            lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() task.defer(function() holder.Size = UDim2.new(1, -20, 0, lay.AbsoluteContentSize.Y + 35) end) end)
-            pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() task.defer(function() page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20) end) end)
+            lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                task.defer(function()
+                    holder.Size = UDim2.new(1, -20, 0, lay.AbsoluteContentSize.Y + 35)
+                end)
+            end)
+
+            pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                task.defer(function()
+                    page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20)
+                end)
+            end)
 
             function Sec:addCheck(cfg)
                 local b = new("TextButton", { Parent = body, Size = UDim2.new(1, -10, 0, 28), BackgroundColor3 = Color3.fromRGB(50, 50, 50), Font = Enum.Font.Gotham, Text = cfg.Text or "", TextSize = 14, TextColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 })
@@ -128,15 +146,17 @@ function UILib.init(title)
 
             function Sec:addDropdown(cfg)
                 local frame = new("Frame", { Parent = body, Size = UDim2.new(1, -10, 0, 28), BackgroundColor3 = Color3.fromRGB(50, 50, 50), BorderSizePixel = 0 })
-                new("TextLabel", { Parent = frame, Size = UDim2.new(1, -25, 1, 0), BackgroundTransparency = 1, Font = Enum.Font.Gotham, Text = cfg.Text or "", TextColor3 = Color3.new(1, 1, 1), TextSize = 14 })
+                local lbl = new("TextLabel", { Parent = frame, Size = UDim2.new(1, -25, 1, 0), BackgroundTransparency = 1, Font = Enum.Font.Gotham, Text = cfg.Text or "", TextColor3 = Color3.new(1, 1, 1), TextSize = 14 })
                 local btn = new("TextButton", { Parent = frame, Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -24, 0.5, -11), BackgroundColor3 = Color3.fromRGB(70, 70, 70), Text = "▼", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 12, BorderSizePixel = 0 })
                 local drop = new("Frame", { Parent = frame, Position = UDim2.new(0, 0, 1, 0), Size = UDim2.new(1, 0, 0, 0), BackgroundColor3 = Color3.fromRGB(45, 45, 45), BorderSizePixel = 0, ClipsDescendants = true })
                 new("UIListLayout", { Parent = drop, SortOrder = Enum.SortOrder.LayoutOrder })
+
                 local open = false
                 btn.MouseButton1Click:Connect(function()
                     open = not open
                     tween(drop, { Size = UDim2.new(1, 0, 0, open and (#(cfg.List or {}) * 24) or 0) }, 0.2)
                 end)
+
                 for _, item in ipairs(cfg.List or {}) do
                     local op = new("TextButton", { Parent = drop, Size = UDim2.new(1, 0, 0, 24), BackgroundColor3 = Color3.fromRGB(55, 55, 55), BorderSizePixel = 0, Font = Enum.Font.Gotham, Text = item, TextColor3 = Color3.new(1, 1, 1), TextSize = 14 })
                     op.MouseButton1Click:Connect(function()
