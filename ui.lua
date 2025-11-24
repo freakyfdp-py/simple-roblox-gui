@@ -237,7 +237,7 @@ function UILib.init(title)
                 local open = false
                 
                 -- Function to calculate the correct position relative to the 'main' window
-                local function calculatePosition()
+                local function updateDropdownPosition()
                     local absPos = frame.AbsolutePosition
                     local mainAbsPos = main.AbsolutePosition
                     local dropWidth = frame.AbsoluteSize.X
@@ -261,30 +261,33 @@ function UILib.init(title)
                 btn.MouseButton1Click:Connect(function()
                     open = not open
                     
+                    local xOffset, yOffset, dropWidth, height = updateDropdownPosition()
+                    
                     if open then
-                        local xOffset, yOffset, dropWidth, height = calculatePosition()
-                        
-                        -- Set position and initialize width before the tween
+                        -- Set position before the tween starts
                         drop.Position = UDim2.new(0, xOffset, 0, yOffset)
+                        
+                        -- Set width immediately (prevents EnumItem conversion error if size is nil/zero during tweening)
                         drop.Size = UDim2.new(0, dropWidth, 0, 0)
                         
                         -- Tween to full height
                         tween(drop, { Size = UDim2.new(0, dropWidth, 0, height) }, 0.2)
                     else
                         -- Tween to 0 height
-                        tween(drop, { Size = UDim2.new(0, frame.AbsoluteSize.X, 0, 0) }, 0.2)
+                        tween(drop, { Size = UDim2.new(0, dropWidth, 0, 0) }, 0.2)
                     end
                 end)
                 
-                -- To prevent the dropdown from getting misplaced if the main window moves while the dropdown is open:
-                main.Position:GetPropertyChangedSignal("Offset"):Connect(function()
+                -- FIX: Listen to the INSTANCE's property change, not the UDim2 value
+                main:GetPropertyChangedSignal("Position"):Connect(function()
                     if open then
-                        local xOffset, yOffset, _, _ = calculatePosition()
+                        local xOffset, yOffset, _, _ = updateDropdownPosition()
+                        -- Update the position immediately when the window is dragged
                         drop.Position = UDim2.new(0, xOffset, 0, yOffset)
                     end
                 end)
                 
-                -- Item list generation
+                -- Item list generation (Kept as is)
                 for _, item in ipairs(listItems) do
                     local op = new("TextButton", { 
                         Parent = drop, 
