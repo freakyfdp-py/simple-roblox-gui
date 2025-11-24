@@ -2,8 +2,6 @@ local UILib = {}
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 
 local function createUI()
     local ScreenGui = Instance.new("ScreenGui")
@@ -28,10 +26,17 @@ local function createUI()
     Title.Text = "UI Library"
     Title.Parent = MainFrame
 
+    local TabContainer = Instance.new("Frame")
+    TabContainer.Size = UDim2.new(1, 0, 1, -50)
+    TabContainer.Position = UDim2.new(0, 0, 0, 50)
+    TabContainer.BackgroundTransparency = 1
+    TabContainer.Parent = MainFrame
+
     local Tabs = {}
     local function addTab(tabName)
         local TabButton = Instance.new("TextButton")
         TabButton.Size = UDim2.new(0, 100, 0, 30)
+        TabButton.Position = UDim2.new(0, (#Tabs) * 105, 0, 0)
         TabButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
         TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
         TabButton.Font = Enum.Font.Gotham
@@ -40,19 +45,23 @@ local function createUI()
         TabButton.Parent = MainFrame
 
         local TabContent = Instance.new("Frame")
-        TabContent.Size = UDim2.new(1, 0, 1, -50)
-        TabContent.Position = UDim2.new(0, 0, 0, 50)
+        TabContent.Size = UDim2.new(1, 0, 1, 0)
         TabContent.BackgroundTransparency = 1
         TabContent.Visible = false
-        TabContent.Parent = MainFrame
+        TabContent.Parent = TabContainer
 
-        Tabs[tabName] = TabContent
+        TabButton.MouseButton1Click:Connect(function()
+            for _, t in pairs(Tabs) do
+                t.Content.Visible = false
+            end
+            TabContent.Visible = true
+        end)
 
-        local SectionContainer = {}
+        local SectionList = {}
         local function addSection(sectionName)
             local SectionFrame = Instance.new("Frame")
-            SectionFrame.Size = UDim2.new(1, -20, 0, 100)
-            SectionFrame.Position = UDim2.new(0, 10, 0, (#SectionContainer * 110))
+            SectionFrame.Size = UDim2.new(1, -20, 0, 40)
+            SectionFrame.Position = UDim2.new(0, 10, 0, (#SectionList) * 120)
             SectionFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
             SectionFrame.BorderSizePixel = 0
             SectionFrame.Parent = TabContent
@@ -67,7 +76,6 @@ local function createUI()
             SectionTitle.Parent = SectionFrame
 
             local Elements = {}
-
             local function addCheck(config)
                 local CheckBox = Instance.new("TextButton")
                 CheckBox.Size = UDim2.new(1, -20, 0, 25)
@@ -101,14 +109,51 @@ local function createUI()
                 Dropdown.Parent = SectionFrame
 
                 local selection = config.List[1]
-                Dropdown.MouseButton1Click:Connect(function()
-                    local nextIndex = table.find(config.List, selection) + 1
-                    if nextIndex > #config.List then nextIndex = 1 end
-                    selection = config.List[nextIndex]
-                    Dropdown.Text = config.Text .. ": " .. tostring(selection)
-                    if config.Callback then
-                        config.Callback(selection)
+                local open = false
+
+                local DropdownFrame = Instance.new("Frame")
+                DropdownFrame.Size = UDim2.new(1, 0, 0, 0)
+                DropdownFrame.Position = UDim2.new(0, 0, 0, 25)
+                DropdownFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+                DropdownFrame.Parent = Dropdown
+
+                local function rebuildDropdown()
+                    for _, v in pairs(DropdownFrame:GetChildren()) do
+                        if v:IsA("TextButton") then
+                            v:Destroy()
+                        end
                     end
+                    local totalHeight = 0
+                    for i, option in ipairs(config.List) do
+                        local OptionBtn = Instance.new("TextButton")
+                        OptionBtn.Size = UDim2.new(1, 0, 0, 25)
+                        OptionBtn.Position = UDim2.new(0, 0, 0, (i-1)*25)
+                        OptionBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+                        OptionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        OptionBtn.Font = Enum.Font.Gotham
+                        OptionBtn.TextSize = 16
+                        OptionBtn.Text = option
+                        OptionBtn.Parent = DropdownFrame
+
+                        OptionBtn.MouseButton1Click:Connect(function()
+                            selection = option
+                            Dropdown.Text = config.Text .. ": " .. tostring(selection)
+                            if config.Callback then
+                                config.Callback(selection)
+                            end
+                            open = false
+                            TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {Size = UDim2.new(1,0,0,0)}):Play()
+                        end)
+                        totalHeight = totalHeight + 25
+                    end
+                    if open then
+                        TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {Size = UDim2.new(1,0,0,totalHeight)}):Play()
+                    end
+                end
+
+                Dropdown.MouseButton1Click:Connect(function()
+                    open = not open
+                    rebuildDropdown()
                 end)
             end
 
@@ -135,7 +180,7 @@ local function createUI()
                 local Picker = Instance.new("TextButton")
                 Picker.Size = UDim2.new(1, -20, 0, 25)
                 Picker.Position = UDim2.new(0, 10, 0, 40 + (#Elements * 35))
-                Picker.BackgroundColor3 = config.Default or Color3.new(1, 1, 1)
+                Picker.BackgroundColor3 = config.Default or Color3.new(1,1,1)
                 Picker.TextColor3 = Color3.fromRGB(255, 255, 255)
                 Picker.Font = Enum.Font.Gotham
                 Picker.TextSize = 16
@@ -151,19 +196,18 @@ local function createUI()
                 end)
             end
 
-            table.insert(SectionContainer, {
+            table.insert(SectionList, {
                 addCheck = addCheck,
                 addDropdown = addDropdown,
                 addInput = addInput,
                 addColorPicker = addColorPicker
             })
 
-            return SectionContainer[#SectionContainer]
+            return SectionList[#SectionList]
         end
 
-        return {
-            addSection = addSection
-        }
+        Tabs[tabName] = {Button = TabButton, Content = TabContent}
+        return {addSection = addSection}
     end
 
     local function Toast(message, duration)
