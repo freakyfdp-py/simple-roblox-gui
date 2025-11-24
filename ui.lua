@@ -166,21 +166,31 @@ function UILib.init(title)
                 local lbl = new("TextLabel", { Parent = frame, Size = UDim2.new(1, -25, 1, 0), BackgroundTransparency = 1, Font = Enum.Font.Gotham, Text = cfg.Text or "", TextColor3 = Color3.new(1,1,1), TextSize = 14 })
                 local btn = new("TextButton", { Parent = frame, Size = UDim2.new(0,22,0,22), Position = UDim2.new(1,-24,0.5,-11), BackgroundColor3 = Color3.fromRGB(70,70,70), Text = "▼", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 12, BorderSizePixel = 0 })
             
-                local drop = new("Frame", { Parent = body, Size = UDim2.new(1,0,0,0), Position = UDim2.new(0,0,1,0), BackgroundColor3 = Color3.fromRGB(45,45,45), BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 10 })
+                local drop = new("Frame", { Parent = Window.Instance, Size = UDim2.new(0, 200, 0, 0), BackgroundColor3 = Color3.fromRGB(45,45,45), BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 10 })
                 new("UIListLayout", { Parent = drop, SortOrder = Enum.SortOrder.LayoutOrder })
             
                 local open = false
                 btn.MouseButton1Click:Connect(function()
                     open = not open
-                    local height = (#(cfg.List or {}) * 24)
-                    tween(drop, { Size = UDim2.new(1,0,0, open and height or 0) }, 0.2)
+                    if open then
+                        local absPos = frame.AbsolutePosition
+                        drop.Position = UDim2.new(0, absPos.X, 0, absPos.Y + frame.AbsoluteSize.Y)
+                        local height = (#(cfg.List or {}) * 24)
+                        local screenHeight = workspace.CurrentCamera.ViewportSize.Y
+                        if drop.Position.Y.Offset + height > screenHeight then
+                            drop.Position = UDim2.new(0, absPos.X, 0, absPos.Y - height)
+                        end
+                        tween(drop, { Size = UDim2.new(0, frame.AbsoluteSize.X, 0, height) }, 0.2)
+                    else
+                        tween(drop, { Size = UDim2.new(0, frame.AbsoluteSize.X, 0, 0) }, 0.2)
+                    end
                 end)
             
                 for _, item in ipairs(cfg.List or {}) do
                     local op = new("TextButton", { Parent = drop, Size = UDim2.new(1,0,0,24), BackgroundColor3 = Color3.fromRGB(55,55,55), BorderSizePixel = 0, Font = Enum.Font.Gotham, Text = item, TextColor3 = Color3.new(1,1,1), TextSize = 14, ZIndex = 11 })
                     op.MouseButton1Click:Connect(function()
                         open = false
-                        tween(drop, { Size = UDim2.new(1,0,0,0) }, 0.2)
+                        tween(drop, { Size = UDim2.new(0, frame.AbsoluteSize.X, 0, 0) }, 0.2)
                         if cfg.Callback then cfg.Callback(item) end
                     end)
                 end
