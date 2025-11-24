@@ -93,6 +93,15 @@ function UILib.init(title)
             TextColor3 = Color3.new(1, 1, 1)
         })
 
+        btn.MouseEnter:Connect(function() tween(btn, { BackgroundColor3 = Color3.fromRGB(55,55,55) }, 0.15) end)
+        btn.MouseLeave:Connect(function()
+            if Window.Active and Window.Active.btn == btn then
+                btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+            else
+                btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+            end
+        end)
+
         local page = new("ScrollingFrame", {
             Parent = pages,
             Size = UDim2.new(1, 0, 1, 0),
@@ -107,8 +116,12 @@ function UILib.init(title)
         new("UIPadding", { Parent = page, PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) })
 
         btn.MouseButton1Click:Connect(function()
-            if Window.Active then Window.Active.page.Visible = false end
+            if Window.Active then
+                Window.Active.page.Visible = false
+                Window.Active.btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+            end
             page.Visible = true
+            btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
             Window.Active = { page = page, btn = btn }
         end)
 
@@ -145,23 +158,24 @@ function UILib.init(title)
             end
 
             function Sec:addDropdown(cfg)
-                local frame = new("Frame", { Parent = body, Size = UDim2.new(1, -10, 0, 28), BackgroundColor3 = Color3.fromRGB(50, 50, 50), BorderSizePixel = 0 })
+                local frame = new("Frame", { Parent = main, Size = UDim2.new(0, 200, 0, 28), BackgroundColor3 = Color3.fromRGB(50, 50, 50), BorderSizePixel = 0 })
+                frame.Position = main:PointToObjectSpace(body.AbsolutePosition)
                 local lbl = new("TextLabel", { Parent = frame, Size = UDim2.new(1, -25, 1, 0), BackgroundTransparency = 1, Font = Enum.Font.Gotham, Text = cfg.Text or "", TextColor3 = Color3.new(1, 1, 1), TextSize = 14 })
                 local btn = new("TextButton", { Parent = frame, Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -24, 0.5, -11), BackgroundColor3 = Color3.fromRGB(70, 70, 70), Text = "▼", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 12, BorderSizePixel = 0 })
-                local drop = new("Frame", { Parent = frame, Position = UDim2.new(0, 0, 1, 0), Size = UDim2.new(1, 0, 0, 0), BackgroundColor3 = Color3.fromRGB(45, 45, 45), BorderSizePixel = 0, ClipsDescendants = true })
+                local drop = new("Frame", { Parent = main, Position = frame.Position + Vector2.new(0,28), Size = UDim2.new(0, 200, 0, 0), BackgroundColor3 = Color3.fromRGB(45, 45, 45), BorderSizePixel = 0, ClipsDescendants = true })
                 new("UIListLayout", { Parent = drop, SortOrder = Enum.SortOrder.LayoutOrder })
 
                 local open = false
                 btn.MouseButton1Click:Connect(function()
                     open = not open
-                    tween(drop, { Size = UDim2.new(1, 0, 0, open and (#(cfg.List or {}) * 24) or 0) }, 0.2)
+                    tween(drop, { Size = UDim2.new(0, 200, 0, open and (#(cfg.List or {}) * 24) or 0) }, 0.2)
                 end)
 
                 for _, item in ipairs(cfg.List or {}) do
                     local op = new("TextButton", { Parent = drop, Size = UDim2.new(1, 0, 0, 24), BackgroundColor3 = Color3.fromRGB(55, 55, 55), BorderSizePixel = 0, Font = Enum.Font.Gotham, Text = item, TextColor3 = Color3.new(1, 1, 1), TextSize = 14 })
                     op.MouseButton1Click:Connect(function()
                         open = false
-                        tween(drop, { Size = UDim2.new(1, 0, 0, 0) }, 0.2)
+                        tween(drop, { Size = UDim2.new(0, 200, 0, 0) }, 0.2)
                         if cfg.Callback then cfg.Callback(item) end
                     end)
                 end
@@ -184,6 +198,7 @@ function UILib.init(title)
 
         if not Window.Active then
             page.Visible = true
+            btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
             Window.Active = { page = page, btn = btn }
         end
 
