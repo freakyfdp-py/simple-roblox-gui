@@ -1,250 +1,233 @@
 local UILib = {}
 
-local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
-local function createUI()
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "UILibraryGui"
-    ScreenGui.ResetOnSpawn = false
-    ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-
-    local MainFrame = Instance.new("Frame")
-    MainFrame.Size = UDim2.new(0, 500, 0, 400)
-    MainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
-    MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    MainFrame.BorderSizePixel = 0
-    MainFrame.Parent = ScreenGui
-
-    local Title = Instance.new("TextLabel")
-    Title.Size = UDim2.new(1, 0, 0, 50)
-    Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    Title.BorderSizePixel = 0
-    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Title.Font = Enum.Font.GothamBold
-    Title.TextSize = 24
-    Title.Text = "UI Library"
-    Title.Parent = MainFrame
-
-    local TabContainer = Instance.new("Frame")
-    TabContainer.Size = UDim2.new(1, 0, 1, -50)
-    TabContainer.Position = UDim2.new(0, 0, 0, 50)
-    TabContainer.BackgroundTransparency = 1
-    TabContainer.Parent = MainFrame
-
-    local Tabs = {}
-    local function addTab(tabName)
-        local TabButton = Instance.new("TextButton")
-        TabButton.Size = UDim2.new(0, 100, 0, 30)
-        TabButton.Position = UDim2.new(0, (#Tabs) * 105, 0, 0)
-        TabButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-        TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        TabButton.Font = Enum.Font.Gotham
-        TabButton.TextSize = 18
-        TabButton.Text = tabName
-        TabButton.Parent = MainFrame
-
-        local TabContent = Instance.new("Frame")
-        TabContent.Size = UDim2.new(1, 0, 1, 0)
-        TabContent.BackgroundTransparency = 1
-        TabContent.Visible = false
-        TabContent.Parent = TabContainer
-
-        TabButton.MouseButton1Click:Connect(function()
-            for _, t in pairs(Tabs) do
-                t.Content.Visible = false
-            end
-            TabContent.Visible = true
-        end)
-
-        local SectionList = {}
-        local function addSection(sectionName)
-            local SectionFrame = Instance.new("Frame")
-            SectionFrame.Size = UDim2.new(1, -20, 0, 40)
-            SectionFrame.Position = UDim2.new(0, 10, 0, (#SectionList) * 120)
-            SectionFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-            SectionFrame.BorderSizePixel = 0
-            SectionFrame.Parent = TabContent
-
-            local SectionTitle = Instance.new("TextLabel")
-            SectionTitle.Size = UDim2.new(1, 0, 0, 30)
-            SectionTitle.BackgroundTransparency = 1
-            SectionTitle.Text = sectionName
-            SectionTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-            SectionTitle.Font = Enum.Font.GothamBold
-            SectionTitle.TextSize = 18
-            SectionTitle.Parent = SectionFrame
-
-            local Elements = {}
-            local function addCheck(config)
-                local CheckBox = Instance.new("TextButton")
-                CheckBox.Size = UDim2.new(1, -20, 0, 25)
-                CheckBox.Position = UDim2.new(0, 10, 0, 40 + (#Elements * 35))
-                CheckBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-                CheckBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-                CheckBox.Font = Enum.Font.Gotham
-                CheckBox.TextSize = 16
-                CheckBox.Text = config.Text .. ": " .. tostring(config.Default)
-                CheckBox.Parent = SectionFrame
-
-                local state = config.Default
-                CheckBox.MouseButton1Click:Connect(function()
-                    state = not state
-                    CheckBox.Text = config.Text .. ": " .. tostring(state)
-                    if config.Callback then
-                        config.Callback(state)
-                    end
-                end)
-            end
-
-            local function addDropdown(config)
-                local Dropdown = Instance.new("TextButton")
-                Dropdown.Size = UDim2.new(1, -20, 0, 25)
-                Dropdown.Position = UDim2.new(0, 10, 0, 40 + (#Elements * 35))
-                Dropdown.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-                Dropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
-                Dropdown.Font = Enum.Font.Gotham
-                Dropdown.TextSize = 16
-                Dropdown.Text = config.Text .. ": " .. tostring(config.List[1])
-                Dropdown.Parent = SectionFrame
-
-                local selection = config.List[1]
-                local open = false
-
-                local DropdownFrame = Instance.new("Frame")
-                DropdownFrame.Size = UDim2.new(1, 0, 0, 0)
-                DropdownFrame.Position = UDim2.new(0, 0, 0, 25)
-                DropdownFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-                DropdownFrame.Parent = Dropdown
-
-                local function rebuildDropdown()
-                    for _, v in pairs(DropdownFrame:GetChildren()) do
-                        if v:IsA("TextButton") then
-                            v:Destroy()
-                        end
-                    end
-                    local totalHeight = 0
-                    for i, option in ipairs(config.List) do
-                        local OptionBtn = Instance.new("TextButton")
-                        OptionBtn.Size = UDim2.new(1, 0, 0, 25)
-                        OptionBtn.Position = UDim2.new(0, 0, 0, (i-1)*25)
-                        OptionBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-                        OptionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-                        OptionBtn.Font = Enum.Font.Gotham
-                        OptionBtn.TextSize = 16
-                        OptionBtn.Text = option
-                        OptionBtn.Parent = DropdownFrame
-
-                        OptionBtn.MouseButton1Click:Connect(function()
-                            selection = option
-                            Dropdown.Text = config.Text .. ": " .. tostring(selection)
-                            if config.Callback then
-                                config.Callback(selection)
-                            end
-                            open = false
-                            TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {Size = UDim2.new(1,0,0,0)}):Play()
-                        end)
-                        totalHeight = totalHeight + 25
-                    end
-                    if open then
-                        TweenService:Create(DropdownFrame, TweenInfo.new(0.2), {Size = UDim2.new(1,0,0,totalHeight)}):Play()
-                    end
-                end
-
-                Dropdown.MouseButton1Click:Connect(function()
-                    open = not open
-                    rebuildDropdown()
-                end)
-            end
-
-            local function addInput(config)
-                local InputBox = Instance.new("TextBox")
-                InputBox.Size = UDim2.new(1, -20, 0, 25)
-                InputBox.Position = UDim2.new(0, 10, 0, 40 + (#Elements * 35))
-                InputBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-                InputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-                InputBox.PlaceholderText = config.Placeholder or ""
-                InputBox.Text = config.Default or ""
-                InputBox.Font = Enum.Font.Gotham
-                InputBox.TextSize = 16
-                InputBox.Parent = SectionFrame
-
-                InputBox.FocusLost:Connect(function(enterPressed)
-                    if enterPressed and config.Callback then
-                        config.Callback(InputBox.Text)
-                    end
-                end)
-            end
-
-            local function addColorPicker(config)
-                local Picker = Instance.new("TextButton")
-                Picker.Size = UDim2.new(1, -20, 0, 25)
-                Picker.Position = UDim2.new(0, 10, 0, 40 + (#Elements * 35))
-                Picker.BackgroundColor3 = config.Default or Color3.new(1,1,1)
-                Picker.TextColor3 = Color3.fromRGB(255, 255, 255)
-                Picker.Font = Enum.Font.Gotham
-                Picker.TextSize = 16
-                Picker.Text = config.Text
-                Picker.Parent = SectionFrame
-
-                local color = config.Default
-                local alpha = config.DefaultAlpha or 1
-                Picker.MouseButton1Click:Connect(function()
-                    if config.Callback then
-                        config.Callback(color, alpha)
-                    end
-                end)
-            end
-
-            table.insert(SectionList, {
-                addCheck = addCheck,
-                addDropdown = addDropdown,
-                addInput = addInput,
-                addColorPicker = addColorPicker
-            })
-
-            return SectionList[#SectionList]
-        end
-
-        Tabs[tabName] = {Button = TabButton, Content = TabContent}
-        return {addSection = addSection}
-    end
-
-    local function Toast(message, duration)
-        duration = duration or 2
-        local toastFrame = Instance.new("Frame")
-        toastFrame.Size = UDim2.new(0, 300, 0, 50)
-        toastFrame.Position = UDim2.new(0.5, -150, 0.8, 0)
-        toastFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-        toastFrame.Parent = ScreenGui
-
-        local toastText = Instance.new("TextLabel")
-        toastText.Size = UDim2.new(1, 0, 1, 0)
-        toastText.BackgroundTransparency = 1
-        toastText.TextColor3 = Color3.fromRGB(255, 255, 255)
-        toastText.Text = message
-        toastText.Font = Enum.Font.Gotham
-        toastText.TextSize = 16
-        toastText.Parent = toastFrame
-
-        TweenService:Create(toastFrame, TweenInfo.new(0.3), {Position = UDim2.new(0.5, -150, 0.7, 0)}):Play()
-        task.delay(duration, function()
-            TweenService:Create(toastFrame, TweenInfo.new(0.3), {Position = UDim2.new(0.5, -150, 0.8, 0)}):Play()
-            task.wait(0.3)
-            toastFrame:Destroy()
-        end)
-    end
-
-    return {
-        init = function(title)
-            Title.Text = title
-            return {
-                addTab = addTab,
-                Instance = MainFrame,
-                Toast = Toast
-            }
-        end
-    }
+local function create(class, props)
+    local obj = Instance.new(class)
+    for k, v in pairs(props) do obj[k] = v end
+    return obj
 end
 
-return createUI()
+local function tween(obj, props, dur)
+    TweenService:Create(obj, TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
+end
+
+function UILib.init(title)
+    local Window = {}
+
+    local ScreenGui = create("ScreenGui", { Parent = game.CoreGui })
+    local Main = create("Frame", {
+        Parent = ScreenGui,
+        Size = UDim2.new(0, 500, 0, 330),
+        BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+        BorderSizePixel = 0
+    })
+
+    local Title = create("TextLabel", {
+        Parent = Main,
+        Size = UDim2.new(1, 0, 0, 40),
+        BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+        BorderSizePixel = 0,
+        Text = tostring(title),
+        Font = Enum.Font.GothamBold,
+        TextSize = 18,
+        TextColor3 = Color3.new(1, 1, 1)
+    })
+
+    local TabHolder = create("Frame", {
+        Parent = Main,
+        Size = UDim2.new(1, 0, 0, 30),
+        Position = UDim2.new(0, 0, 0, 40),
+        BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+        BorderSizePixel = 0
+    })
+
+    local TabList = create("UIListLayout", {
+        Parent = TabHolder,
+        FillDirection = Enum.FillDirection.Horizontal,
+        SortOrder = Enum.SortOrder.LayoutOrder
+    })
+
+    local PageHolder = create("Frame", {
+        Parent = Main,
+        Size = UDim2.new(1, 0, 1, -70),
+        Position = UDim2.new(0, 0, 0, 70),
+        BackgroundColor3 = Color3.fromRGB(15, 15, 15),
+        BorderSizePixel = 0
+    })
+
+    Window.Instance = Main
+    Window.Tabs = {}
+
+    function Window:addTab(name)
+        local Tab = {}
+
+        local Button = create("TextButton", {
+            Parent = TabHolder,
+            Size = UDim2.new(0, 100, 1, 0),
+            BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+            BorderSizePixel = 0,
+            Text = tostring(name),
+            Font = Enum.Font.GothamBold,
+            TextSize = 14,
+            TextColor3 = Color3.new(1, 1, 1)
+        })
+
+        local Page = create("Frame", {
+            Parent = PageHolder,
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundColor3 = Color3.fromRGB(15, 15, 15),
+            BorderSizePixel = 0,
+            Visible = false
+        })
+
+        local List = create("UIListLayout", {
+            Parent = Page,
+            Padding = UDim.new(0, 10),
+            SortOrder = Enum.SortOrder.LayoutOrder
+        })
+
+        Button.MouseButton1Click:Connect(function()
+            for _, tab in pairs(Window.Tabs) do
+                tab.Page.Visible = false
+            end
+            Page.Visible = true
+        end)
+
+        function Tab:addSection(title)
+            local Section = {}
+
+            local Holder = create("Frame", {
+                Parent = Page,
+                Size = UDim2.new(1, -20, 0, 100),
+                BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+                BorderSizePixel = 0
+            })
+
+            local Title = create("TextLabel", {
+                Parent = Holder,
+                Size = UDim2.new(1, 0, 0, 30),
+                BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+                BorderSizePixel = 0,
+                Text = tostring(title),
+                Font = Enum.Font.GothamSemibold,
+                TextSize = 14,
+                TextColor3 = Color3.new(1, 1, 1)
+            })
+
+            local Elements = create("Frame", {
+                Parent = Holder,
+                Position = UDim2.new(0, 0, 0, 30),
+                Size = UDim2.new(1, 0, 1, -30),
+                BackgroundTransparency = 1
+            })
+
+            local Layout = create("UIListLayout", {
+                Parent = Elements,
+                Padding = UDim.new(0, 8),
+                SortOrder = Enum.SortOrder.LayoutOrder
+            })
+
+            function Section:addCheck(cfg)
+                local Btn = create("TextButton", {
+                    Parent = Elements,
+                    Size = UDim2.new(1, -10, 0, 25),
+                    BackgroundColor3 = Color3.fromRGB(40, 40, 40),
+                    BorderSizePixel = 0,
+                    Text = tostring(cfg.Text),
+                    Font = Enum.Font.Gotham,
+                    TextSize = 14,
+                    TextColor3 = Color3.new(1, 1, 1)
+                })
+
+                local state = cfg.Default
+                Btn.MouseButton1Click:Connect(function()
+                    state = not state
+                    cfg.Callback(state)
+                end)
+            end
+
+            function Section:addDropdown(cfg)
+                local Btn = create("TextButton", {
+                    Parent = Elements,
+                    Size = UDim2.new(1, -10, 0, 25),
+                    BackgroundColor3 = Color3.fromRGB(40, 40, 40),
+                    BorderSizePixel = 0,
+                    Text = tostring(cfg.Text),
+                    Font = Enum.Font.Gotham,
+                    TextSize = 14,
+                    TextColor3 = Color3.new(1, 1, 1)
+                })
+
+                Btn.MouseButton1Click:Connect(function()
+                    cfg.Callback(cfg.List[1])
+                end)
+            end
+
+            function Section:addInput(cfg)
+                local Box = create("TextBox", {
+                    Parent = Elements,
+                    Size = UDim2.new(1, -10, 0, 25),
+                    BackgroundColor3 = Color3.fromRGB(40, 40, 40),
+                    BorderSizePixel = 0,
+                    Text = tostring(cfg.Default),
+                    PlaceholderText = tostring(cfg.Placeholder),
+                    Font = Enum.Font.Gotham,
+                    TextSize = 14,
+                    TextColor3 = Color3.new(1, 1, 1)
+                })
+
+                Box.FocusLost:Connect(function()
+                    cfg.Callback(Box.Text)
+                end)
+            end
+
+            function Section:addColorPicker(cfg)
+                local Btn = create("TextButton", {
+                    Parent = Elements,
+                    Size = UDim2.new(1, -10, 0, 25),
+                    BackgroundColor3 = cfg.Default,
+                    BorderSizePixel = 0,
+                    Text = tostring(cfg.Text),
+                    Font = Enum.Font.Gotham,
+                    TextSize = 14,
+                    TextColor3 = Color3.new(1, 1, 1)
+                })
+
+                Btn.MouseButton1Click:Connect(function()
+                    cfg.Callback(cfg.Default, cfg.DefaultAlpha)
+                end)
+            end
+
+            return Section
+        end
+
+        Window.Tabs[name] = { Button = Button, Page = Page }
+        return Tab
+    end
+
+    function Window:Toast(msg, dur)
+        local Toast = create("TextLabel", {
+            Parent = Main,
+            Size = UDim2.new(0, 300, 0, 30),
+            Position = UDim2.new(0.5, -150, 0, -40),
+            BackgroundColor3 = Color3.fromRGB(40, 40, 40),
+            Text = tostring(msg),
+            TextColor3 = Color3.new(1, 1, 1),
+            Font = Enum.Font.GothamBold,
+            TextSize = 14,
+            BorderSizePixel = 0
+        })
+
+        tween(Toast, { Position = UDim2.new(0.5, -150, 0, 10) }, 0.3)
+        task.wait(dur)
+        tween(Toast, { Position = UDim2.new(0.5, -150, 0, -40) }, 0.3)
+        task.wait(0.3)
+        Toast:Destroy()
+    end
+
+    return Window
+end
+
+return UILib
