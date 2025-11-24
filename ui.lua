@@ -6,7 +6,7 @@ local Players = game:GetService("Players")
 
 local function new(class, props)
     local o = Instance.new(class)
-    for k, v in pairs(props or {}) do o[k] = v end
+    for k,v in pairs(props or {}) do o[k] = v end
     return o
 end
 
@@ -70,7 +70,6 @@ function UILib.init(title)
         BackgroundColor3 = Color3.fromRGB(32, 32, 32),
         BorderSizePixel = 0
     })
-
     new("UIListLayout", { Parent = tabbar, FillDirection = Enum.FillDirection.Vertical, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) })
     new("UIPadding", { Parent = tabbar, PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) })
 
@@ -81,7 +80,6 @@ function UILib.init(title)
 
     function Window:addTab(name)
         local Tab = {}
-
         local btn = new("TextButton", {
             Parent = tabbar,
             Size = UDim2.new(1, -20, 0, 34),
@@ -161,12 +159,12 @@ function UILib.init(title)
                 local frame = new("Frame", { Parent = body, Size = UDim2.new(1, -10, 0, 28), BackgroundColor3 = Color3.fromRGB(50,50,50), BorderSizePixel = 0 })
                 local lbl = new("TextLabel", { Parent = frame, Size = UDim2.new(1, -25, 1, 0), BackgroundTransparency = 1, Font = Enum.Font.Gotham, Text = cfg.Text or "", TextColor3 = Color3.new(1,1,1), TextSize = 14 })
                 local btn = new("TextButton", { Parent = frame, Size = UDim2.new(0,22,0,22), Position = UDim2.new(1,-24,0.5,-11), BackgroundColor3 = Color3.fromRGB(70,70,70), Text = "▼", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 12, BorderSizePixel = 0 })
-            
+
                 local drop = new("Frame", { Parent = main, Size = UDim2.new(0, 200, 0, 0), BackgroundColor3 = Color3.fromRGB(45,45,45), BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 10 })
                 new("UIListLayout", { Parent = drop, SortOrder = Enum.SortOrder.LayoutOrder })
-            
+
                 local open = false
-            
+
                 btn.MouseButton1Click:Connect(function()
                     open = not open
                     if open then
@@ -181,7 +179,7 @@ function UILib.init(title)
                         tween(drop, { Size = UDim2.new(0, 200, 0, 0) }, 0.2)
                     end
                 end)
-            
+
                 task.spawn(function()
                     while task.wait(0.03) do
                         if open then
@@ -194,7 +192,7 @@ function UILib.init(title)
                         end
                     end
                 end)
-            
+
                 for _, item in ipairs(cfg.List or {}) do
                     local op = new("TextButton", { Parent = drop, Size = UDim2.new(1, 0, 0, 24), BackgroundColor3 = Color3.fromRGB(55, 55, 55), BorderSizePixel = 0, Font = Enum.Font.Gotham, Text = item, TextColor3 = Color3.new(1, 1, 1), TextSize = 14, ZIndex = 11 })
                     op.MouseButton1Click:Connect(function()
