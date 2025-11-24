@@ -162,7 +162,7 @@ function UILib.init(title)
                 local lbl = new("TextLabel", { Parent = frame, Size = UDim2.new(1, -25, 1, 0), BackgroundTransparency = 1, Font = Enum.Font.Gotham, Text = cfg.Text or "", TextColor3 = Color3.new(1,1,1), TextSize = 14 })
                 local btn = new("TextButton", { Parent = frame, Size = UDim2.new(0,22,0,22), Position = UDim2.new(1,-24,0.5,-11), BackgroundColor3 = Color3.fromRGB(70,70,70), Text = "▼", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 12, BorderSizePixel = 0 })
             
-                local drop = new("Frame", { Parent = main, Size = UDim2.new(0, 200, 0, 0), BackgroundColor3 = Color3.fromRGB(45,45,45), BorderSizePixel = 0, ClipsDescendants = true })
+                local drop = new("Frame", { Parent = main, Size = UDim2.new(0, 200, 0, 0), BackgroundColor3 = Color3.fromRGB(45,45,45), BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 10 })
                 new("UIListLayout", { Parent = drop, SortOrder = Enum.SortOrder.LayoutOrder })
             
                 local open = false
@@ -170,21 +170,21 @@ function UILib.init(title)
                 btn.MouseButton1Click:Connect(function()
                     open = not open
                     if open then
-                        -- update position dynamically
+                        drop.Parent = main
+                        drop.ZIndex = 10
                         drop.Position = UDim2.new(0, frame.AbsolutePosition.X, 0, frame.AbsolutePosition.Y + frame.AbsoluteSize.Y)
                         local height = (#(cfg.List or {}) * 24)
                         local screenHeight = workspace.CurrentCamera.ViewportSize.Y
                         if drop.Position.Y.Offset + height > screenHeight then
-                            -- flip above button if dropdown goes offscreen
                             drop.Position = UDim2.new(0, frame.AbsolutePosition.X, 0, frame.AbsolutePosition.Y - height)
                         end
                         tween(drop, { Size = UDim2.new(0, 200, 0, height) }, 0.2)
                     else
                         tween(drop, { Size = UDim2.new(0, 200, 0, 0) }, 0.2)
                     end
+                    drop:BringToFront()
                 end)
             
-                -- continuously update position while open for scrolling
                 task.spawn(function()
                     while task.wait(0.03) do
                         if open then
@@ -194,12 +194,13 @@ function UILib.init(title)
                             if drop.Position.Y.Offset + height > screenHeight then
                                 drop.Position = UDim2.new(0, frame.AbsolutePosition.X, 0, frame.AbsolutePosition.Y - height)
                             end
+                            drop:BringToFront()
                         end
                     end
                 end)
             
                 for _, item in ipairs(cfg.List or {}) do
-                    local op = new("TextButton", { Parent = drop, Size = UDim2.new(1, 0, 0, 24), BackgroundColor3 = Color3.fromRGB(55, 55, 55), BorderSizePixel = 0, Font = Enum.Font.Gotham, Text = item, TextColor3 = Color3.new(1, 1, 1), TextSize = 14 })
+                    local op = new("TextButton", { Parent = drop, Size = UDim2.new(1, 0, 0, 24), BackgroundColor3 = Color3.fromRGB(55, 55, 55), BorderSizePixel = 0, Font = Enum.Font.Gotham, Text = item, TextColor3 = Color3.new(1, 1, 1), TextSize = 14, ZIndex = 11 })
                     op.MouseButton1Click:Connect(function()
                         open = false
                         tween(drop, { Size = UDim2.new(0, 200, 0, 0) }, 0.2)
