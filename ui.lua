@@ -74,7 +74,16 @@ function UILib.init(title)
     new("UIListLayout", { Parent = tabbar, FillDirection = Enum.FillDirection.Vertical, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) })
     new("UIPadding", { Parent = tabbar, PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) })
 
-    local pages = new("Frame", { Parent = main, Position = UDim2.new(0, 140, 0, 40), Size = UDim2.new(1, -140, 1, -40), BackgroundColor3 = Color3.fromRGB(25, 25, 25), BorderSizePixel = 0 })
+    local pages = new("ScrollingFrame", {
+        Parent = main,
+        Position = UDim2.new(0, 140, 0, 40),
+        Size = UDim2.new(1, -140, 1, -40),
+        BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+        BorderSizePixel = 0,
+        CanvasSize = UDim2.new(0,0,0,0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollBarThickness = 6
+    })
 
     Window.Tabs = {}
     Window.Active = nil
@@ -101,23 +110,11 @@ function UILib.init(title)
             end
         end)
 
-        local page = new("ScrollingFrame", {
-            Parent = pages,
-            Size = UDim2.new(1, 0, 1, 0),
-            BackgroundTransparency = 1,
-            CanvasSize = UDim2.new(0, 0, 0, 0),
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            ScrollBarThickness = 6,
-            Visible = false
-        })
+        local page = new("Frame", { Parent = pages, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Visible = false })
 
-        local pageLayout = new("UIListLayout", { Parent = page, Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder })
-        new("UIPadding", { Parent = page, PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) })
-
-        -- Section columns
+        -- Horizontal container for sections
         local leftColumn = new("Frame", { Parent = page, Size = UDim2.new(0.5, -5, 1, 0), BackgroundTransparency = 1 })
         local rightColumn = new("Frame", { Parent = page, Size = UDim2.new(0.5, -5, 1, 0), Position = UDim2.new(0.5, 10, 0, 0), BackgroundTransparency = 1 })
-        local nextColumn = "left"
 
         btn.MouseButton1Click:Connect(function()
             if Window.Active then
@@ -129,9 +126,16 @@ function UILib.init(title)
             Window.Active = { page = page, btn = btn }
         end)
 
-        function Tab:addSection(secName)
-            local parentColumn = (nextColumn == "left") and leftColumn or rightColumn
-            nextColumn = (nextColumn == "left") and "right" or "left"
+        function Tab:addSection(secName, column)
+            local parentColumn
+            if column == "left" then parentColumn = leftColumn
+            elseif column == "right" then parentColumn = rightColumn
+            else
+                -- Auto alternate if not specified
+                local leftCount = #leftColumn:GetChildren()
+                local rightCount = #rightColumn:GetChildren()
+                parentColumn = (leftCount <= rightCount) and leftColumn or rightColumn
+            end
 
             local Sec = {}
             local holder = new("Frame", { Parent = parentColumn, Size = UDim2.new(1, 0, 0, 50), BackgroundColor3 = Color3.fromRGB(32,32,32), BorderSizePixel = 0 })
@@ -146,13 +150,6 @@ function UILib.init(title)
                 end)
             end)
 
-            pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                task.defer(function()
-                    page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20)
-                end)
-            end)
-
-            -- Methods for addCheck, addDropdown, addInput, addColorPicker remain unchanged
             function Sec:addCheck(cfg)
                 local b = new("TextButton", { Parent = body, Size = UDim2.new(1, -10, 0, 28), BackgroundColor3 = Color3.fromRGB(50,50,50), Font = Enum.Font.Gotham, Text = cfg.Text or "", TextSize = 14, TextColor3 = Color3.new(1,1,1), BorderSizePixel = 0 })
                 local state = cfg.Default and true or false
@@ -235,6 +232,7 @@ function UILib.init(title)
         end)
     end
 
+    Window.Instance = main
     return Window
 end
 
