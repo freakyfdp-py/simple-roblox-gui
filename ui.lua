@@ -65,6 +65,44 @@ function lib.Init(title, corner)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Parent = content
 
+    -- make window draggable
+    local dragging = false
+    local dragInput, dragStart, startPos
+    header.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    header.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if dragging and input == dragInput then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    -- F5 toggle
+    local visible = true
+    game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
+        if not processed and input.KeyCode == Enum.KeyCode.F5 then
+            visible = not visible
+            gui.Enabled = visible
+        end
+    end)
+
     return {
         gui = gui,
         frame = mainFrame,
@@ -92,28 +130,50 @@ function lib.Init(title, corner)
             end)
             return f
         end,
-        addSlider = function(self, text, min, max, default, callback)
+        addSlider = function(self, text, min, max, default, decimals, callback)
+            decimals = decimals or 0
             local f = lib.makeRect(content, Vector2.new(0, 40), Color3.fromRGB(50,50,50), nil, 5)
-            local lbl = lib.makeText(f, text, Vector2.new(200, 40), Color3.new(1,1,1))
+            local lbl = lib.makeText(f, text, Vector2.new(150, 40), Color3.new(1,1,1))
             lbl.Position = UDim2.new(0,5,0,0)
+
             local bar = lib.makeRect(f, Vector2.new(150, 20), Color3.fromRGB(100,100,100), nil, 5)
-            bar.Position = UDim2.new(0, 220, 0.5, -10)
+            bar.Position = UDim2.new(0, 160, 0.5, -10)
+
             local fill = lib.makeRect(bar, Vector2.new(150 * ((default - min)/(max - min)), 20), Color3.fromRGB(0,255,0), nil, 5)
+
+            local valLbl = lib.makeText(f, tostring(default), Vector2.new(50, 40), Color3.new(1,1,1))
+            valLbl.Position = UDim2.new(0, 320, 0, 0)
+
             local dragging = false
+
+            local function updateValue(posX)
+                local pos = math.clamp(posX - bar.AbsolutePosition.X, 0, bar.AbsoluteSize.X)
+                fill.Size = UDim2.new(0, pos, 1, 0)
+                local val = min + ((pos / bar.AbsoluteSize.X) * (max - min))
+                val = math.floor(val * (10^decimals)) / (10^decimals)
+                valLbl.Text = tostring(val)
+                if callback then callback(val) end
+            end
+
             bar.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end
-            end)
-            bar.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-            end)
-            game:GetService("UserInputService").InputChanged:Connect(function(input)
-                if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                    local pos = math.clamp(input.Position.X - bar.AbsolutePosition.X, 0, bar.AbsoluteSize.X)
-                    fill.Size = UDim2.new(0, pos, 1, 0)
-                    local val = min + ((pos/bar.AbsoluteSize.X) * (max - min))
-                    if callback then callback(val) end
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = true
+                    updateValue(input.Position.X)
                 end
             end)
+
+            bar.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = false
+                end
+            end)
+
+            game:GetService("UserInputService").InputChanged:Connect(function(input)
+                if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                    updateValue(input.Position.X)
+                end
+            end)
+
             return f
         end
     }
