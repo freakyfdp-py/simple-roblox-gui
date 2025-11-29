@@ -87,7 +87,7 @@ function lib.Init(title, corner)
 
     local tabs = {}
     local keybinds = {}
-    local openDropdowns = {} -- Track open dropdowns
+    local openDropdowns = {}
 
     local dragging, dragInput, dragStart, startPos = false
     header.InputBegan:Connect(function(input)
@@ -133,7 +133,7 @@ function lib.Init(title, corner)
     
     local function closeAllDropdowns()
         for i, listFrame in ipairs(openDropdowns) do
-            if listFrame and listFrame.Parent then
+            if listFrame and listFrame.Parent and listFrame.Visible then
                 listFrame.Visible = false
             end
         end
@@ -152,7 +152,7 @@ function lib.Init(title, corner)
         local tweenInfoOut = TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
         if not visible then
-            closeAllDropdowns() -- Close dropdowns when UI is closed
+            closeAllDropdowns() 
         end
         
         if visible then
@@ -278,7 +278,7 @@ function lib.Init(title, corner)
         end)
 
         local function selectTab()
-            closeAllDropdowns() -- Close dropdowns when changing tabs
+            closeAllDropdowns() 
             for k, v in pairs(tabs) do
                 v.frame.Visible = false
                 v.button.BackgroundColor3 = UI_ELEMENT_COLOR
@@ -557,7 +557,7 @@ function lib.Init(title, corner)
         end
 
         local function openList()
-            closeAllDropdowns() -- Close other dropdowns
+            closeAllDropdowns() 
             local absPos = f.AbsolutePosition
             listFrame.Size = UDim2.new(0, f.AbsoluteSize.X, 0, math.min(#options * 25, 150))
             listFrame.Position = UDim2.new(0, absPos.X, 0, absPos.Y + f.AbsoluteSize.Y)
@@ -577,7 +577,7 @@ function lib.Init(title, corner)
             end
         end)
         
-        -- FIX: Use AbsolutePosition check instead of input.Target to avoid CorePackage error
+        -- FIX: Use AbsolutePosition check to avoid 'Target is not a valid member' crash
         UserInputService.InputBegan:Connect(function(input)
             if listOpen and input.UserInputType == Enum.UserInputType.MouseButton1 then
                 local pos = input.Position
