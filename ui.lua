@@ -1,530 +1,546 @@
---[[
-    UI Library ModuleScript (UILibrary)
+local RunService = game:GetService('RunService')
+local TweenService = game:GetService('TweenService')
+local InputService = game:GetService('UserInputService')
+local CoreGui = game:GetService('CoreGui')
+local LocalPlayer = game:GetService('Players').LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
 
-    This module provides an object-oriented API for building complex UIs with
-    cascading structure: Window -> Tab -> Section -> Component.
-]]
+local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end)
 
-local ui = {}
-local Players = game:GetService("Players")
+local ScreenGui = Instance.new('ScreenGui')
+ProtectGui(ScreenGui)
+ScreenGui.Name = "AuraUI_ScreenGui"
+ScreenGui.DisplayOrder = 999
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+ScreenGui.Parent = CoreGui
 
--- Configuration constants
-local C = {
-    -- Colors
-    PRIMARY_BG = Color3.fromRGB(40, 44, 52),
-    SECONDARY_BG = Color3.fromRGB(48, 52, 60), -- Tab/Section background
-    HEADER_BG = Color3.fromRGB(24, 25, 29),
-    ACCENT = Color3.fromRGB(85, 170, 255),
-    TEXT_COLOR = Color3.fromRGB(255, 255, 255),
+local Toggles = {}
+local Options = {}
+getgenv().Toggles = Toggles
+getgenv().Options = Options
 
-    -- Sizes & Spacing
-    WINDOW_SIZE = UDim2.new(0.3, 0, 0.5, 0),
-    HEADER_HEIGHT = 30,
-    PADDING_SIZE = 8,
-    COMPONENT_HEIGHT = 30,
-    CORNER_RADIUS = UDim.new(0, 8),
-    SMALL_CORNER_RADIUS = UDim.new(0, 5),
+local AuraUI = {
+    Registry = {};
+    OpenedFrames = {};
+    CurrentWindow = nil;
+
+    FontColor = Color3.fromRGB(30, 30, 30);
+    AccentColor = Color3.fromRGB(0, 180, 200);
+    MainColor = Color3.fromRGB(245, 245, 250);
+    OutlineColor = Color3.fromRGB(200, 200, 200);
+    ShadowColor = Color3.new(0, 0, 0);
+    Transparency = 0.2;
+
+    WINDOW_SIZE = UDim2.new(0, 600, 0, 400);
+    TAB_BAR_WIDTH = 150;
+    FONT = Enum.Font.GothamSemibold;
+    FONT_SIZE = 14;
+    CORNER_RADIUS = 12;
 }
 
--- Private Helper Functions (Instance Creation)
-local function createInstance(className, properties)
-    local inst = Instance.new(className)
-    for k, v in pairs(properties) do
-        inst[k] = v
+function AuraUI:Create(Class, Properties)
+    local Element = Instance.new(Class)
+    for Key, Value in pairs(Properties) do
+        Element[Key] = Value
     end
-    return inst
+    return Element
 end
 
-local function applyCorners(instance, radius)
-    local corner = createInstance("UICorner", {
-        CornerRadius = radius or C.SMALL_CORNER_RADIUS,
-        Parent = instance,
-    })
-    return corner
-end
-
-local function setupDraggable(frame, dragHandle)
-    local dragging = false
-    local dragStartPos = Vector2.new(0, 0)
-    local frameStartPos = UDim2.new(0, 0, 0, 0)
-
-    dragHandle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStartPos = input.Position
-            frameStartPos = frame.Position
-        end
-    end)
-
-    dragHandle.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
-    end)
-
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStartPos
-            local parentSize = frame.Parent.AbsoluteSize
-            local newX = frameStartPos.X.Scale + delta.X / parentSize.X
-            local newY = frameStartPos.Y.Scale + delta.Y / parentSize.Y
-            frame.Position = UDim2.new(newX, 0, newY, 0)
-        end
-    end)
-end
-
--- ====================================================================
--- Component Metatables (Base Components)
--- ====================================================================
-
-ui.Component = {}
-
--- [[ Label Component ]] ----------------------------------------------
-ui.Component.Label = { __index = ui.Component.Label }
-
-function ui.Component.Label:edit(new_text: string)
-    self.Instance.Text = new_text
-end
-
-function ui.Component.Label.new(parent, content: string)
-    local self = setmetatable({
-        Instance = createInstance("TextLabel", {
-            Name = "Label",
-            Size = UDim2.new(1, 0, 0, 20),
-            BackgroundTransparency = 1,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Text = content,
-            Font = Enum.Font.SourceSans,
-            TextColor3 = C.TEXT_COLOR,
-            TextSize = 16,
-            Parent = parent,
-        }),
-    }, ui.Component.Label)
-    return self
-end
-
--- [[ Button Component ]] ---------------------------------------------
-ui.Component.Button = { __index = ui.Component.Button }
-
-function ui.Component.Button.new(parent, name: string, callback: function)
-    local Button = createInstance("TextButton", {
-        Name = name .. "Button",
-        Text = name,
-        Size = UDim2.new(1, 0, 0, C.COMPONENT_HEIGHT),
-        BackgroundColor3 = C.ACCENT,
-        Font = Enum.Font.SourceSansBold,
-        TextColor3 = C.TEXT_COLOR,
-        TextSize = 18,
-        Parent = parent,
-    })
-    applyCorners(Button, C.SMALL_CORNER_RADIUS)
-
-    Button.MouseButton1Click:Connect(callback)
-
-    local self = setmetatable({
-        Instance = Button,
-    }, ui.Component.Button)
-    return self
-end
-
--- [[ Toggle Component ]] ---------------------------------------------
-ui.Component.Toggle = { __index = ui.Component.Toggle }
-
-function ui.Component.Toggle.new(parent, name: string, callback: function)
-    local Frame = createInstance("Frame", {
-        Name = name .. "ToggleContainer",
-        Size = UDim2.new(1, 0, 0, C.COMPONENT_HEIGHT),
-        BackgroundTransparency = 1,
-        Parent = parent,
-    })
-
-    -- Layout the components inside the frame
-    local ListLayout = createInstance("UIListLayout", {
-        FillDirection = Enum.FillDirection.Horizontal,
-        VerticalAlignment = Enum.VerticalAlignment.Center,
-        Padding = UDim.new(0, C.PADDING_SIZE),
-        Parent = Frame,
-    })
-
-    -- Label
-    local Label = createInstance("TextLabel", {
-        Name = "Label",
-        Text = name,
-        Size = UDim2.new(1, -30, 1, 0), -- Takes remaining space
-        BackgroundTransparency = 1,
-        Font = Enum.Font.SourceSans,
-        TextColor3 = C.TEXT_COLOR,
-        TextSize = 16,
-        Parent = Frame,
-    })
-
-    -- Toggle Button
-    local IsOn = false
-    local ToggleButton = createInstance("TextButton", {
-        Name = "Toggle",
-        Text = "OFF",
-        Size = UDim2.new(0, 45, 1, 0),
-        BackgroundColor3 = Color3.fromRGB(150, 40, 40), -- Default RED (Off)
-        Font = Enum.Font.SourceSansBold,
-        TextColor3 = C.TEXT_COLOR,
-        TextSize = 16,
-        Parent = Frame,
-    })
-    applyCorners(ToggleButton, C.SMALL_CORNER_RADIUS)
-
-    local function updateState()
-        IsOn = not IsOn
-        if IsOn then
-            ToggleButton.Text = "ON"
-            ToggleButton.BackgroundColor3 = C.ACCENT
-        else
-            ToggleButton.Text = "OFF"
-            ToggleButton.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
-        end
-        callback(IsOn)
-    end
-
-    ToggleButton.MouseButton1Click:Connect(updateState)
-
-    local self = setmetatable({
-        Instance = Frame,
-        Toggle = ToggleButton,
-        IsOn = IsOn,
-        -- Expose a way to manually change the state if needed
-        toggle = updateState,
-    }, ui.Component.Toggle)
-    return self
-end
-
--- [[ Slider Component ]] ---------------------------------------------
-ui.Component.Slider = { __index = ui.Component.Slider }
-
-function ui.Component.Slider.new(parent, name: string, min: number, max: number, precision: number, callback: function)
-    local Container = createInstance("Frame", {
-        Name = name .. "SliderContainer",
-        Size = UDim2.new(1, 0, 0, C.COMPONENT_HEIGHT + 20), -- More height for label and slider
-        BackgroundTransparency = 1,
-        Parent = parent,
-    })
-
-    local TitleLabel = ui.Component.Label.new(Container, name)
-    TitleLabel.Instance.Size = UDim2.new(1, 0, 0, 20)
-    TitleLabel.Instance.TextYAlignment = Enum.TextYAlignment.Top
-
-    -- Value Display Label (updates with slider)
-    local ValueLabel = ui.Component.Label.new(Container, string.format("%." .. precision .. "f", min))
-    ValueLabel.Instance.TextXAlignment = Enum.TextXAlignment.Right
-    ValueLabel.Instance.Size = UDim2.new(1, 0, 0, 20)
-    ValueLabel.Instance.Position = UDim2.new(0, 0, 0, 0)
+local function ApplyGlassStyle(Frame, CornerRadius, Transparency, Color)
+    Frame.BackgroundColor3 = Color or AuraUI.MainColor
+    Frame.BackgroundTransparency = Transparency or AuraUI.Transparency
     
-    -- Slider Bar (Frame)
-    local SliderBar = createInstance("Frame", {
-        Name = "Bar",
-        Size = UDim2.new(1, 0, 0, 10),
-        Position = UDim2.new(0, 0, 0, 20),
-        BackgroundColor3 = C.SECONDARY_BG,
-        Parent = Container,
-    })
-    applyCorners(SliderBar)
-
-    -- Slider Thumb (Button)
-    local Thumb = createInstance("TextButton", {
-        Name = "Thumb",
-        Text = "",
-        Size = UDim2.new(0, 15, 1.5, 0),
-        Position = UDim2.new(0, 0, -0.25, 0), -- Slightly overlap top/bottom
-        BackgroundColor3 = C.ACCENT,
-        Parent = SliderBar,
-    })
-    applyCorners(Thumb)
-
-    local IsDragging = false
-    local currentNormalizedValue = 0
-
-    local function updateValue(normalized)
-        -- Clamp between 0 and 1
-        normalized = math.max(0, math.min(1, normalized))
-
-        -- Calculate actual value
-        local value = min + normalized * (max - min)
-        local formattedValue = string.format("%." .. precision .. "f", value)
-        
-        -- Update UI
-        Thumb.Position = UDim2.new(normalized, 0, -0.25, 0)
-        ValueLabel.Instance.Text = formattedValue
-        currentNormalizedValue = normalized
-
-        -- Execute callback
-        callback(value)
-    end
-    
-    -- Initialize
-    updateValue(0)
-
-    -- Draggable Logic
-    Thumb.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            IsDragging = true
-        end
-    end)
-    
-    Thumb.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            IsDragging = false
-        end
-    end)
-
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if IsDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local localPos = SliderBar:WorldToScreenPoint(input.Position)
-            local sliderX = SliderBar.AbsolutePosition.X
-            local sliderWidth = SliderBar.AbsoluteSize.X
-            
-            local mouseX = input.Position.X
-            local normalizedX = (mouseX - sliderX) / sliderWidth
-            
-            updateValue(normalizedX)
-        end
-    end)
-
-    local self = setmetatable({
-        Instance = Container,
-        ValueLabel = ValueLabel.Instance,
-        SliderBar = SliderBar,
-        Thumb = Thumb,
-        min = min,
-        max = max,
-        precision = precision,
-    }, ui.Component.Slider)
-    return self
-end
-
--- ====================================================================
--- Structural Metatables
--- ====================================================================
-
--- [[ Section Metatable ]] --------------------------------------------
-ui.Section = { __index = ui.Section }
-
-function ui.Section:createSlider(name: string, min: number, max: number, precision: number, callback: function)
-    return ui.Component.Slider.new(self.Instance, name, min, max, precision, callback)
-end
-
-function ui.Section:createToggle(name: string, callback: function)
-    return ui.Component.Toggle.new(self.Instance, name, callback)
-end
-
-function ui.Section:createButton(name: string, callback: function)
-    return ui.Component.Button.new(self.Instance, name, callback)
-end
-
-function ui.Section:createLabel(content: string)
-    return ui.Component.Label.new(self.Instance, content)
-end
-
-function ui.Section.new(parent, name: string)
-    local Frame = createInstance("Frame", {
-        Name = name .. "Section",
-        Size = UDim2.new(1, 0, 0, 0), -- Auto size Y, full width
-        BackgroundColor3 = C.SECONDARY_BG,
-        BorderSizePixel = 0,
-        Parent = parent,
-    })
-    applyCorners(Frame)
-
-    createInstance("UIPadding", {
-        PaddingTop = UDim.new(0, C.PADDING_SIZE),
-        PaddingBottom = UDim.new(0, C.PADDING_SIZE),
-        PaddingLeft = UDim.new(0, C.PADDING_SIZE),
-        PaddingRight = UDim.new(0, C.PADDING_SIZE),
-        Parent = Frame,
-    })
-
-    createInstance("UIListLayout", {
-        Name = "SectionLayout",
-        Padding = UDim.new(0, C.PADDING_SIZE),
-        HorizontalAlignment = Enum.HorizontalAlignment.Center,
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        Parent = Frame,
-    })
-
-    createInstance("UISizeConstraint", {
-        MinSize = Vector2.new(100, 50),
+    local Corner = AuraUI:Create('UICorner', {
+        CornerRadius = UDim.new(0, CornerRadius or AuraUI.CORNER_RADIUS),
         Parent = Frame
     })
 
-    local self = setmetatable({
-        Name = name,
-        Instance = Frame,
-    }, ui.Section)
-    return self
-end
-
--- [[ Tab Metatable ]] ------------------------------------------------
-ui.Tab = { __index = ui.Tab }
-
-function ui.Tab:createSection(name: string)
-    return ui.Section.new(self.Instance, name or "Section")
-end
-
-function ui.Tab.new(parent, name: string)
-    local Frame = createInstance("Frame", {
-        Name = name .. "Tab",
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Visible = false, -- Default hidden
-        Parent = parent,
+    local Stroke = AuraUI:Create('UIStroke', {
+        Thickness = 1,
+        Color = AuraUI.OutlineColor,
+        Transparency = 0.5,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+        Parent = Frame
     })
 
-    -- Setup layout for sections
-    createInstance("UIListLayout", {
-        Name = "TabLayout",
-        Padding = UDim.new(0, C.PADDING_SIZE),
-        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+    local Gradient = AuraUI:Create('UIGradient', {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color or AuraUI.MainColor),
+            ColorSequenceKeypoint.new(1, (Color or AuraUI.MainColor) * Color3.new(0.95, 0.95, 0.95))
+        }),
+        Rotation = 90,
+        Transparency = NumberSequence.new(0),
+        Parent = Frame
+    })
+
+    return Frame, Corner, Stroke
+end
+
+function AuraUI:Window(Name)
+    if AuraUI.CurrentWindow then
+        warn("AuraUI: Only one main window is supported.")
+        return AuraUI.CurrentWindow
+    end
+
+    local Window = AuraUI:Create('Frame', {
+        Name = Name or "AuraUI_Window",
+        Size = AuraUI.WINDOW_SIZE,
+        Position = UDim2.new(0.5, -AuraUI.WINDOW_SIZE.Offset.X / 2, 0.5, -AuraUI.WINDOW_SIZE.Offset.Y / 2),
+        Parent = ScreenGui,
+        Draggable = true,
+        ClipsDescendants = true,
+    })
+    AuraUI.CurrentWindow = Window
+
+    ApplyGlassStyle(Window, AuraUI.CORNER_RADIUS, AuraUI.Transparency, AuraUI.MainColor)
+
+    local TabBar = AuraUI:Create('Frame', {
+        Name = "TabBar",
+        Size = UDim2.new(0, AuraUI.TAB_BAR_WIDTH, 1, 0),
+        Position = UDim2.new(0, 0, 0, 0),
+        Parent = Window,
+    })
+    ApplyGlassStyle(TabBar, AuraUI.CORNER_RADIUS - 5, AuraUI.Transparency + 0.1, AuraUI.MainColor * Color3.new(0.95, 0.95, 0.95))
+
+    local TabListLayout = AuraUI:Create('UIListLayout', {
+        HorizontalAlignment = Enum.HorizontalAlignment.Left,
+        VerticalAlignment = Enum.VerticalAlignment.Top,
+        Padding = UDim.new(0, 8),
         SortOrder = Enum.SortOrder.LayoutOrder,
-        Parent = Frame,
+        Parent = TabBar,
+    })
+    AuraUI:Create('UIPadding', {
+        PaddingTop = UDim.new(0, 15),
+        PaddingBottom = UDim.new(0, 15),
+        PaddingLeft = UDim.new(0, 10),
+        PaddingRight = UDim.new(0, 10),
+        Parent = TabBar,
     })
 
-    local self = setmetatable({
-        Name = name,
-        Instance = Frame,
-    }, ui.Tab)
-    return self
-end
-
--- [[ Window Metatable ]] ---------------------------------------------
-ui.Window = { __index = ui.Window }
-
-function ui.Window:createTab(name: string)
-    -- Create button for the tab bar
-    local TabButton = createInstance("TextButton", {
-        Name = name .. "TabButton",
-        Text = name,
-        Size = UDim2.new(0, 100, 1, 0),
-        BackgroundColor3 = C.SECONDARY_BG,
-        Font = Enum.Font.SourceSansBold,
-        TextColor3 = C.TEXT_COLOR,
-        TextSize = 16,
-        Parent = self.TabContainer,
+    local ContentArea = AuraUI:Create('Frame', {
+        Name = "ContentArea",
+        Size = UDim2.new(1, -AuraUI.TAB_BAR_WIDTH, 1, 0),
+        Position = UDim2.new(0, AuraUI.TAB_BAR_WIDTH, 0, 0),
+        BackgroundColor3 = AuraUI.MainColor,
+        BackgroundTransparency = 1,
+        Parent = Window,
     })
-    applyCorners(TabButton, C.SMALL_CORNER_RADIUS)
 
-    -- Create the actual tab content frame
-    local NewTab = ui.Tab.new(self.ContentArea, name)
-    self.Tabs[name] = NewTab
+    Window.Tabs = {}
+    Window.CurrentTab = nil
 
-    -- Tab switching logic
-    local function activateTab()
-        -- Deactivate all other tabs
-        for _, tab in pairs(self.Tabs) do
-            tab.Instance.Visible = false
-        end
-
-        -- Activate the new tab
-        NewTab.Instance.Visible = true
-        self.CurrentTab = name
+    function Window:CreateTab(Name, Icon)
+        local TabButton = AuraUI:Create('TextButton', {
+            Name = "Tab_" .. Name:gsub(" ", "_"),
+            Text = Name,
+            Font = AuraUI.FONT,
+            TextSize = AuraUI.FONT_SIZE,
+            TextColor3 = AuraUI.FontColor,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 30),
+            Parent = TabBar,
+            LayoutOrder = #Window.Tabs + 1
+        })
         
-        -- Update button colors
-        for tabName, tab in pairs(self.Tabs) do
-            local button = self.TabContainer:FindFirstChild(tabName .. "TabButton")
-            if button then
-                button.BackgroundColor3 = (tabName == name) and C.ACCENT or C.SECONDARY_BG
+        local AccentBar = AuraUI:Create('Frame', {
+            Name = "AccentBar",
+            Size = UDim2.new(0, 3, 1, 0),
+            Position = UDim2.new(0, 0, 0, 0),
+            BackgroundColor3 = AuraUI.AccentColor,
+            BackgroundTransparency = 1,
+            Parent = TabButton
+        })
+        ApplyGlassStyle(AccentBar, 2, 0.5, AuraUI.AccentColor)
+
+        local TabFrame = AuraUI:Create('ScrollingFrame', {
+            Name = "TabContent_" .. Name:gsub(" ", "_"),
+            Size = UDim2.new(1, -15, 1, -15),
+            Position = UDim2.new(0, 15, 0, 15),
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            ScrollBarImageColor3 = AuraUI.AccentColor,
+            ScrollBarThickness = 6,
+            BackgroundTransparency = 1,
+            Parent = ContentArea,
+            Visible = false
+        })
+
+        local ContentLayout = AuraUI:Create('UIListLayout', {
+            HorizontalAlignment = Enum.HorizontalAlignment.Center,
+            VerticalAlignment = Enum.VerticalAlignment.Top,
+            Padding = UDim.new(0, 10),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Parent = TabFrame,
+        })
+        
+        local Tab = {
+            Button = TabButton;
+            Frame = TabFrame;
+            Layout = ContentLayout;
+            Elements = {};
+        }
+
+        function TabButton.MouseButton1Click()
+            if Window.CurrentTab == Tab then return end
+            
+            if Window.CurrentTab then
+                TweenService:Create(Window.CurrentTab.Button.AccentBar, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+                Window.CurrentTab.Button.TextColor3 = AuraUI.FontColor
+                Window.CurrentTab.Frame.Visible = false
             end
+
+            TweenService:Create(AccentBar, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+            TabButton.TextColor3 = AuraUI.AccentColor
+            TabFrame.Visible = true
+            Window.CurrentTab = Tab
+
+            RunService.Heartbeat:Wait()
+            TabFrame.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y)
         end
+        
+        if #Window.Tabs == 0 then
+            TabButton.MouseButton1Click()
+        end
+        
+        function Tab:Label(Text)
+            local LabelFrame = AuraUI:Create('Frame', {
+                Name = "LabelFrame",
+                Size = UDim2.new(1, 0, 0, 20),
+                BackgroundTransparency = 1,
+                Parent = TabFrame
+            })
+
+            local Label = AuraUI:Create('TextLabel', {
+                Name = "Label",
+                Text = Text,
+                Font = AuraUI.FONT,
+                TextSize = AuraUI.FONT_SIZE + 2,
+                TextColor3 = AuraUI.FontColor * Color3.new(0.8, 0.8, 0.8),
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 1, 0),
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = LabelFrame
+            })
+            
+            local LabelElement = {
+                Label = Label;
+            }
+
+            function LabelElement:SetText(NewText)
+                Label.Text = NewText
+                RunService.Heartbeat:Wait()
+                TabFrame.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y)
+            end
+
+            table.insert(Tab.Elements, LabelFrame)
+            return LabelElement
+        end
+        
+        function Tab:Divider()
+            local DividerFrame = AuraUI:Create('Frame', {
+                Name = "DividerFrame",
+                Size = UDim2.new(1, 0, 0, 20),
+                BackgroundTransparency = 1,
+                Parent = TabFrame
+            })
+            
+            local Line = AuraUI:Create('Frame', {
+                Name = "Line",
+                Size = UDim2.new(1, -20, 0, 1),
+                Position = UDim2.new(0.5, 0, 0.5, 0),
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundColor3 = AuraUI.OutlineColor,
+                BackgroundTransparency = AuraUI.Transparency + 0.5,
+                Parent = DividerFrame
+            })
+
+            table.insert(Tab.Elements, DividerFrame)
+        end
+
+        function Tab:Toggle(Name, Default)
+            local ToggleElement = {
+                Value = Default or false,
+                CallbackFunc = function() end,
+            }
+            Toggles[Name] = ToggleElement
+
+            local ToggleFrame = AuraUI:Create('Frame', {
+                Name = "Toggle_" .. Name:gsub(" ", "_"),
+                Size = UDim2.new(1, 0, 0, 30),
+                BackgroundTransparency = 1,
+                Parent = TabFrame
+            })
+
+            local Label = AuraUI:Create('TextLabel', {
+                Name = "Label",
+                Text = Name,
+                Font = AuraUI.FONT,
+                TextSize = AuraUI.FONT_SIZE,
+                TextColor3 = AuraUI.FontColor,
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, -40, 1, 0),
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = ToggleFrame
+            })
+
+            local IndicatorSize = 20
+            local Indicator = AuraUI:Create('TextButton', {
+                Name = "Indicator",
+                Size = UDim2.new(0, IndicatorSize * 2, 0, IndicatorSize),
+                Position = UDim2.new(1, -IndicatorSize * 2, 0.5, -IndicatorSize / 2),
+                BackgroundTransparency = 0,
+                Text = "",
+                Parent = ToggleFrame,
+                
+            })
+            ApplyGlassStyle(Indicator, IndicatorSize / 2, AuraUI.Transparency + 0.1, AuraUI.OutlineColor)
+
+            local ToggleCircle = AuraUI:Create('Frame', {
+                Name = "Circle",
+                Size = UDim2.new(0, IndicatorSize * 0.8, 0, IndicatorSize * 0.8),
+                Position = UDim2.new(0, IndicatorSize * 0.1, 0.5, -IndicatorSize * 0.4),
+                BackgroundColor3 = AuraUI.FontColor,
+                Parent = Indicator,
+            })
+            AuraUI:Create('UICorner', {CornerRadius = UDim.new(1, 0), Parent = ToggleCircle})
+
+            local function UpdateVisuals(IsActive)
+                local IndicatorColor = IsActive and AuraUI.AccentColor or AuraUI.OutlineColor
+                local Position = IsActive and UDim2.new(1, -IndicatorSize * 0.1 - ToggleCircle.Size.Offset.X, 0.5, -IndicatorSize * 0.4)
+                                          or UDim2.new(0, IndicatorSize * 0.1, 0.5, -IndicatorSize * 0.4)
+
+                TweenService:Create(Indicator, TweenInfo.new(0.2), {BackgroundColor3 = IndicatorColor}):Play()
+                TweenService:Create(ToggleCircle, TweenInfo.new(0.2), {Position = Position}):Play()
+                ToggleCircle.BackgroundColor3 = IsActive and Color3.new(1, 1, 1) or AuraUI.FontColor
+                
+                local Grad = Indicator:FindFirstChildOfClass("UIGradient")
+                if Grad then
+                   Grad.Color = ColorSequence.new({
+                        ColorSequenceKeypoint.new(0, IndicatorColor),
+                        ColorSequenceKeypoint.new(1, IndicatorColor * Color3.new(0.9, 0.9, 0.9))
+                    })
+                end
+            end
+            
+            function ToggleElement:SetValue(NewState)
+                if NewState ~= self.Value then
+                    self.Value = NewState
+                    UpdateVisuals(NewState)
+                    self.CallbackFunc(NewState)
+                end
+            end
+
+            function ToggleElement:OnChanged(Func)
+                self.CallbackFunc = Func
+            end
+
+            Indicator.MouseButton1Click:Connect(function()
+                ToggleElement:SetValue(not ToggleElement.Value)
+            end)
+
+            UpdateVisuals(ToggleElement.Value)
+            table.insert(Tab.Elements, ToggleFrame)
+            
+            return ToggleElement
+        end
+
+        function Tab:Button(Name, Callback)
+            local Button = AuraUI:Create('TextButton', {
+                Name = "Button_" .. Name:gsub(" ", "_"),
+                Text = Name,
+                Font = AuraUI.FONT,
+                TextSize = AuraUI.FONT_SIZE,
+                TextColor3 = Color3.new(1, 1, 1),
+                Size = UDim2.new(1, 0, 0, 35),
+                Parent = TabFrame,
+            })
+            ApplyGlassStyle(Button, 8, 0, AuraUI.AccentColor)
+
+            Button.MouseEnter:Connect(function()
+                TweenService:Create(Button, TweenInfo.new(0.15), {BackgroundTransparency = 0.1}):Play()
+            end)
+            Button.MouseLeave:Connect(function()
+                TweenService:Create(Button, TweenInfo.new(0.15), {BackgroundTransparency = 0}):Play()
+            end)
+            
+            Button.MouseButton1Click:Connect(Callback or function() end)
+
+            table.insert(Tab.Elements, Button)
+            
+            local ButtonElement = {
+                Button = Button
+            }
+            return ButtonElement
+        end
+        
+        function Tab:Slider(Name, Min, Max, Default, Step)
+            local SliderElement = {
+                Value = Default or Min,
+                CallbackFunc = function() end,
+            }
+            Options[Name] = SliderElement
+            Min, Max, Step = Min or 0, Max or 100, Step or 1
+
+            local SliderFrame = AuraUI:Create('Frame', {
+                Name = "Slider_" .. Name:gsub(" ", "_"),
+                Size = UDim2.new(1, 0, 0, 50),
+                BackgroundTransparency = 1,
+                Parent = TabFrame
+            })
+
+            local Label = AuraUI:Create('TextLabel', {
+                Name = "Label",
+                Text = string.format("%s: %.2f", Name, SliderElement.Value),
+                Font = AuraUI.FONT,
+                TextSize = AuraUI.FONT_SIZE,
+                TextColor3 = AuraUI.FontColor,
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0.5, 0),
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = SliderFrame
+            })
+
+            local Track = AuraUI:Create('Frame', {
+                Name = "Track",
+                Size = UDim2.new(1, 0, 0, 8),
+                Position = UDim2.new(0, 0, 0.6, 0),
+                BackgroundColor3 = AuraUI.OutlineColor,
+                BackgroundTransparency = AuraUI.Transparency + 0.2,
+                Parent = SliderFrame,
+            })
+            ApplyGlassStyle(Track, 4, AuraUI.Transparency + 0.2, AuraUI.OutlineColor)
+            
+            local Fill = AuraUI:Create('Frame', {
+                Name = "Fill",
+                Size = UDim2.new(0, 0, 1, 0),
+                Position = UDim2.new(0, 0, 0, 0),
+                BackgroundColor3 = AuraUI.AccentColor,
+                Parent = Track,
+            })
+            AuraUI:Create('UICorner', {CornerRadius = UDim.new(1, 0), Parent = Fill})
+            
+            local Knob = AuraUI:Create('Frame', {
+                Name = "Knob",
+                Size = UDim2.new(0, 16, 0, 16),
+                Position = UDim2.new(0, -8, 0.5, -8),
+                BackgroundColor3 = AuraUI.AccentColor,
+                Parent = Track,
+                ZIndex = 2
+            })
+            AuraUI:Create('UICorner', {CornerRadius = UDim.new(1, 0), Parent = Knob})
+            
+            local IsDragging = false
+            
+            local function UpdateVisuals(Value)
+                local FillRatio = (Value - Min) / (Max - Min)
+                local TrackWidth = Track.AbsoluteSize.X
+                local KnobOffset = FillRatio * TrackWidth
+                
+                Fill.Size = UDim2.new(0, KnobOffset, 1, 0)
+                Knob.Position = UDim2.new(0, KnobOffset - 8, 0.5, -8)
+                Label.Text = string.format("%s: %.2f", Name, Value)
+            end
+
+            local function UpdateSlider(Input)
+                local TrackPos = Track.AbsolutePosition.X
+                local TrackWidth = Track.AbsoluteSize.X
+                local MouseX = Input.Position.X
+                
+                local Ratio = math.min(1, math.max(0, (MouseX - TrackPos) / TrackWidth))
+                local Value = Min + Ratio * (Max - Min)
+                
+                if Step > 0 then
+                    Value = math.floor((Value / Step) + 0.5) * Step
+                end
+                Value = math.min(Max, math.max(Min, Value))
+                
+                if Value ~= SliderElement.Value then
+                    SliderElement.Value = Value
+                    UpdateVisuals(Value)
+                    SliderElement.CallbackFunc(Value)
+                end
+            end
+            
+            function SliderElement:SetValue(NewValue)
+                local ClampedValue = math.min(Max, math.max(Min, NewValue))
+                
+                if Step > 0 then
+                    ClampedValue = math.floor((ClampedValue / Step) + 0.5) * Step
+                end
+                
+                if ClampedValue ~= self.Value then
+                    self.Value = ClampedValue
+                    UpdateVisuals(ClampedValue)
+                    self.CallbackFunc(ClampedValue)
+                end
+            end
+
+            function SliderElement:OnChanged(Func)
+                self.CallbackFunc = Func
+            end
+
+            Track.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    IsDragging = true
+                    UpdateSlider(Input)
+                end
+            end)
+
+            Knob.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    IsDragging = true
+                    Knob.ZIndex = 3
+                end
+            end)
+
+            InputService.InputChanged:Connect(function(Input)
+                if IsDragging and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
+                    UpdateSlider(Input)
+                end
+            end)
+
+            InputService.InputEnded:Connect(function(Input)
+                if IsDragging and (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch) then
+                    IsDragging = false
+                    Knob.ZIndex = 2
+                end
+            end)
+            
+            UpdateVisuals(SliderElement.Value)
+
+            table.insert(Tab.Elements, SliderFrame)
+            
+            return SliderElement
+        end
+
+        Window.Tabs[Name] = Tab
+        return Tab
     end
 
-    TabButton.MouseButton1Click:Connect(activateTab)
-
-    -- If this is the first tab, activate it
-    if #self.Tabs == 1 then
-        activateTab()
-    end
-
-    return NewTab
-end
-
-function ui.Window.new(title: string)
-    local LocalPlayer = Players.LocalPlayer
-    if not LocalPlayer then return nil end
-    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-
-    -- 1. ScreenGui
-    local ScreenGui = createInstance("ScreenGui", { Name = title:gsub("%s+", "") .. "Screen", IgnoreGuiInset = true, Parent = PlayerGui })
-
-    -- 2. MainFrame (Window Container)
-    local MainFrame = createInstance("Frame", {
-        Name = "MainWindow",
-        Size = C.WINDOW_SIZE,
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.new(0.5, 0, 0.5, 0),
-        BackgroundColor3 = C.PRIMARY_BG,
-        BorderSizePixel = 2,
-        BorderColor3 = C.HEADER_BG,
+    local ModalElement = AuraUI:Create('TextButton', {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0, 0, 0, 0),
+        Visible = true,
+        Text = '',
+        Modal = false,
         Parent = ScreenGui,
     })
-    applyCorners(MainFrame, C.CORNER_RADIUS)
     
-    -- 3. Header Frame
-    local Header = createInstance("Frame", {
-        Name = "Header",
-        Size = UDim2.new(1, 0, 0, C.HEADER_HEIGHT),
-        BackgroundColor3 = C.HEADER_BG,
-        BorderSizePixel = 0,
-        Parent = MainFrame,
-    })
-    createInstance("TextLabel", {
-        Name = "Title",
-        Text = title,
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Font = Enum.Font.SourceSansBold,
-        TextColor3 = C.TEXT_COLOR,
-        TextSize = 18,
-        Parent = Header,
-    })
-    setupDraggable(MainFrame, Header)
-
-    -- 4. Tab Container (for buttons)
-    local TabContainer = createInstance("Frame", {
-        Name = "TabButtons",
-        Size = UDim2.new(1, 0, 0, C.COMPONENT_HEIGHT),
-        Position = UDim2.new(0, 0, 0, C.HEADER_HEIGHT),
-        BackgroundTransparency = 1,
-        Parent = MainFrame,
-    })
-    createInstance("UIListLayout", {
-        FillDirection = Enum.FillDirection.Horizontal,
-        Padding = UDim.new(0, C.PADDING_SIZE),
-        Parent = TabContainer,
-    })
-
-    -- 5. Content Area (for tab content)
-    local ContentArea = createInstance("Frame", {
-        Name = "TabContent",
-        Size = UDim2.new(1, 0, 1, -(C.HEADER_HEIGHT + C.COMPONENT_HEIGHT + C.PADDING_SIZE)), -- Header + TabBar height
-        Position = UDim2.new(0, 0, 0, C.HEADER_HEIGHT + C.COMPONENT_HEIGHT + C.PADDING_SIZE),
-        BackgroundTransparency = 1,
-        Parent = MainFrame,
-    })
+    local isVisible = true
     
-    local self = setmetatable({
-        Instance = MainFrame,
-        ScreenGui = ScreenGui,
-        Header = Header,
-        TabContainer = TabContainer,
-        ContentArea = ContentArea,
-        Tabs = {},
-        CurrentTab = nil,
-    }, ui.Window)
-    return self
+    InputService.InputBegan:Connect(function(Input, Processed)
+        if Input.KeyCode == Enum.KeyCode.RightControl or (Input.KeyCode == Enum.KeyCode.RightShift and (not Processed)) then
+            isVisible = not isVisible
+            Window.Visible = isVisible
+            ModalElement.Modal = isVisible
+
+            InputService.MouseIconEnabled = isVisible
+        end
+    end)
+    
+    Window.Position = UDim2.new(0.5, -Window.Size.Offset.X / 2, 0.5, -Window.Size.Offset.Y / 2)
+
+    return Window
 end
 
--- ====================================================================
--- Public API
--- ====================================================================
-
-function ui:Init(title: string)
-    return ui.Window.new(title)
-end
-
-return ui
+getgenv().AuraUI = AuraUI
