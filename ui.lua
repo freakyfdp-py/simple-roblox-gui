@@ -1,9 +1,7 @@
 local lib = {}
-
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
-
 local UI_BG_COLOR = Color3.fromRGB(30, 33, 36)
 local UI_SECTION_BG_COLOR = Color3.fromRGB(40, 44, 47)
 local UI_ELEMENT_COLOR = Color3.fromRGB(50, 54, 57)
@@ -56,12 +54,28 @@ end
 function lib.Init(title, corner)
     local gui = Instance.new("ScreenGui")
     gui.Name = title:gsub("%s+", "") .. "GUI"
-    gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
     gui.ResetOnSpawn = false
 
+    local success_parent = pcall(function()
+        local player = Players.LocalPlayer
+        if player then
+            local playerGui = player:WaitForChild("PlayerGui", 5) 
+            if playerGui then
+                gui.Parent = playerGui
+            else
+                gui.Parent = game:GetService("CoreGui") or game
+            end
+        else
+            gui.Parent = game:GetService("CoreGui") or game
+        end
+    end)
+
+    if not success_parent then
+        gui.Parent = game:GetService("CoreGui") or game
+    end
+    
     local mainFrame = lib.makeRect(gui, Vector2.new(500, 400), UI_BG_COLOR, nil, corner or CORNER_RADIUS * 2)
     mainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
-    -- Crucial for handling clicks inside the window
     mainFrame.Active = true 
 
     local header = lib.makeText(mainFrame, title or "Window", Vector2.new(500, 40), UI_TEXT_COLOR, Enum.TextXAlignment.Center, 24)
@@ -89,8 +103,8 @@ function lib.Init(title, corner)
 
     local tabs = {}
     local keybinds = {}
-    local openDropdowns = {} -- Track open dropdowns (listFrame objects)
-    local dropdownButtons = {} -- Track the button that opens the dropdown (f objects)
+    local openDropdowns = {}
+    local dropdownButtons = {}
 
     local dragging, dragInput, dragStart, startPos = false
     header.InputBegan:Connect(function(input)
@@ -183,7 +197,6 @@ function lib.Init(title, corner)
         end
     end)
 
-    -- FIX: Use InputEnded to check for click outside dropdown area using position, avoiding InputObject.Target error.
     UserInputService.InputEnded:Connect(function(input)
         if visible and #openDropdowns > 0 and input.UserInputType == Enum.UserInputType.MouseButton1 then
             
@@ -194,7 +207,6 @@ function lib.Init(title, corner)
                 local listAbsPos = listFrame.AbsolutePosition
                 local listAbsSize = listFrame.AbsoluteSize
                 
-                -- Check if the mouse position is inside the list frame boundaries
                 local inListX = mousePos.X >= listAbsPos.X and mousePos.X <= listAbsPos.X + listAbsSize.X
                 local inListY = mousePos.Y >= listAbsPos.Y and mousePos.Y <= listAbsPos.Y + listAbsSize.Y
                 
@@ -204,8 +216,6 @@ function lib.Init(title, corner)
                 end
             end
 
-            -- Now check if the click was on a dropdown button itself, to prevent closing the dropdown 
-            -- if the user clicked it to open/close it in the first place.
             if clickedOutside then
                 for button, _ in pairs(dropdownButtons) do
                     local btnAbsPos = button.AbsolutePosition
@@ -215,7 +225,6 @@ function lib.Init(title, corner)
                     local inButtonY = mousePos.Y >= btnAbsPos.Y and mousePos.Y <= btnAbsPos.Y + btnAbsSize.Y
                     
                     if inButtonX and inButtonY then
-                        -- If the user clicked the button, the button's internal logic handles it.
                         clickedOutside = false
                         break
                     end
@@ -561,7 +570,6 @@ function lib.Init(title, corner)
         local f = lib.makeRect(section.content, Vector2.new(0, frameHeight), UI_ELEMENT_COLOR, nil, CORNER_RADIUS)
         f.Size = UDim2.new(1, 0, 0, frameHeight)
         
-        -- Store button reference for the global closing logic in lib.Init
         dropdownButtons[f] = true
 
         local currentOption = default
@@ -583,7 +591,6 @@ function lib.Init(title, corner)
             Position = UDim2.new(0, 0, 0, 0),
             BackgroundColor3 = UI_ELEMENT_COLOR,
             BackgroundTransparency = 0,
-            Visible = false,
             BorderSizePixel = 0,
             ZIndex = 2
         })
@@ -611,7 +618,6 @@ function lib.Init(title, corner)
         end
 
         local function openList()
-            -- Close others first using the safe method
             closeAllDropdowns() 
             local absPos = f.AbsolutePosition
             listFrame.Size = UDim2.new(0, f.AbsoluteSize.X, 0, math.min(#options * 25, 150))
@@ -622,7 +628,6 @@ function lib.Init(title, corner)
             table.insert(openDropdowns, listFrame)
         end
         
-        -- Safest click handler: Toggle state on click
         f.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 if listOpen then
