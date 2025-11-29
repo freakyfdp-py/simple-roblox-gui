@@ -4,10 +4,9 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 
--- Define Colors (Improved Contrast)
-local UI_BG_COLOR = Color3.fromRGB(30, 33, 36)    -- Deepest background (Main Frame)
-local UI_SECTION_BG_COLOR = Color3.fromRGB(40, 44, 47) -- Background for the Content Area/Tab Bar (Layer 2)
-local UI_ELEMENT_COLOR = Color3.fromRGB(50, 54, 57) -- Background for Elements (Buttons, Toggles, Sliders) (Layer 3)
+local UI_BG_COLOR = Color3.fromRGB(30, 33, 36)
+local UI_SECTION_BG_COLOR = Color3.fromRGB(40, 44, 47)
+local UI_ELEMENT_COLOR = Color3.fromRGB(50, 54, 57)
 local UI_ACCENT_COLOR = Color3.fromRGB(88, 101, 242)
 local UI_TOGGLE_ON = Color3.fromRGB(240, 71, 71)
 local UI_TOGGLE_OFF = Color3.fromRGB(67, 181, 129)
@@ -72,7 +71,6 @@ function lib.Init(title, corner)
     c(content, {Parent = mainFrame, Size = UDim2.new(1, -20, 1, -60), Position = UDim2.new(0, 10, 0, 50), BackgroundTransparency = 1})
 
     local tabBar = Instance.new("Frame")
-    -- FIXED: Set tabBar background color for separation
     c(tabBar, {Parent = content, Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = UI_SECTION_BG_COLOR})
 
     local tabLayout = Instance.new("UIListLayout")
@@ -116,14 +114,16 @@ function lib.Init(title, corner)
         for _, child in ipairs(frame:GetChildren()) do
             if child:IsA("TextLabel") or child:IsA("TextButton") then
                 TweenService:Create(child, tweenInfo, {TextTransparency = targetTransparency}):Play()
+                
                 if child:IsA("TextButton") then
                     TweenService:Create(child, tweenInfo, {BackgroundTransparency = targetTransparency}):Play()
                 end
-            elseif child:IsA("Frame") or child:IsA("ScrollingFrame") then
-                TweenService:Create(child, tweenInfo, {BackgroundTransparency = targetTransparency}):Play()
-                tweenChildrenTransparency(child, targetTransparency, tweenInfo)
+            
             elseif child:IsA("UIStroke") then
                 TweenService:Create(child, tweenInfo, {Transparency = targetTransparency}):Play()
+                
+            elseif child:IsA("Frame") or child:IsA("ScrollingFrame") then
+                tweenChildrenTransparency(child, targetTransparency, tweenInfo)
             end
         end
     end
@@ -243,7 +243,6 @@ function lib.Init(title, corner)
 
     local function createTab(tabName)
         local btn = Instance.new("TextButton")
-        -- Unselected tabs use the lighter UI_ELEMENT_COLOR
         c(btn, {Parent = tabBar, Size = UDim2.new(0, 80, 0, 30), BackgroundColor3 = UI_ELEMENT_COLOR, Text = tabName, TextColor3 = UI_TEXT_COLOR, TextScaled = true, AutoButtonColor = true, Font = FONT})
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, CORNER_RADIUS)
 
@@ -265,10 +264,10 @@ function lib.Init(title, corner)
         local function selectTab()
             for k, v in pairs(tabs) do
                 v.frame.Visible = false
-                v.button.BackgroundColor3 = UI_ELEMENT_COLOR -- Unselected color
+                v.button.BackgroundColor3 = UI_ELEMENT_COLOR
             end
             tabFrame.Visible = true
-            btn.BackgroundColor3 = UI_BG_COLOR -- Selected tab uses the Darkest color to contrast with tabBar (UI_SECTION_BG_COLOR)
+            btn.BackgroundColor3 = UI_BG_COLOR
         end
 
         btn.MouseButton1Click:Connect(selectTab)
@@ -278,7 +277,6 @@ function lib.Init(title, corner)
     end
 
     local function createSection(tab, sectionName)
-        -- FIXED: Section frame uses UI_SECTION_BG_COLOR for separation from other elements/background
         local section = lib.makeRect(tab.frame, Vector2.new(0, 0), UI_SECTION_BG_COLOR, nil, CORNER_RADIUS)
         section.Size = UDim2.new(1, 0, 0, 0)
 
@@ -408,7 +406,6 @@ function lib.Init(title, corner)
         label.Size = UDim2.new(1, -10, 0, 18)
         label.Position = UDim2.new(0, 10, 0, 3)
 
-        -- Slider track uses the darker UI_SECTION_BG_COLOR for contrast against the element background
         local sliderBar = lib.makeRect(f, Vector2.new(0, 6), UI_SECTION_BG_COLOR, nil, 3)
         sliderBar.Size = UDim2.new(1, -20, 0, 6)
         sliderBar.Position = UDim2.new(0, 10, 0, 25)
