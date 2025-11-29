@@ -142,9 +142,13 @@ function lib.Init(title, corner)
             tweenChildrenTransparency(mainFrame, 0, tweenInfoIn)
         else
             local fadeOut = TweenService:Create(mainFrame, tweenInfoOut, {BackgroundTransparency = 1})
-            fadeOut:Play()
+            
+            -- Start tweening children immediately
             tweenChildrenTransparency(mainFrame, 1, tweenInfoOut)
-
+            
+            fadeOut:Play()
+            
+            -- Only hide the frame after the main background tween completes
             fadeOut.Completed:Wait()
             mainFrame.Visible = false
         end
@@ -205,6 +209,7 @@ function lib.Init(title, corner)
         local timerBar = lib.makeRect(barFrame, Vector2.new(280, 3), UI_ACCENT_COLOR, nil, 1)
         timerBar.Size = UDim2.new(1, 0, 1, 0)
         timerBar.UIStroke.Transparency = 1
+        timerBar.BackgroundTransparency = 1
 
         -- Fade In
         local tweenInfoIn = TweenInfo.new(fadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -230,10 +235,14 @@ function lib.Init(title, corner)
             TweenService:Create(barFrame, tweenInfoOut, {BackgroundTransparency = 1}):Play()
             TweenService:Create(barFrame.UIStroke, tweenInfoOut, {Transparency = 1}):Play()
             TweenService:Create(timerBar, tweenInfoOut, {BackgroundTransparency = 1}):Play()
-
+            
             fadeOut:Play()
+            
+            -- Wait for the fade-out to complete before destroying the toast
             fadeOut.Completed:Wait()
-            toast:Destroy()
+            if toast.Parent then
+                toast:Destroy()
+            end
         end)
     end
 
