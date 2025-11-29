@@ -2,24 +2,25 @@ local lib = {}
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
-local UI_BG_COLOR = Color3.fromRGB(30, 30, 30)
-local UI_ELEMENT_COLOR = Color3.fromRGB(50, 50, 50)
-local UI_SECTION_COLOR = Color3.fromRGB(40, 40, 40)
-local UI_ACCENT_COLOR = Color3.fromRGB(0, 150, 255)
-local UI_TOGGLE_ON = Color3.fromRGB(0, 255, 0)
-local UI_TOGGLE_OFF = Color3.fromRGB(255, 0, 0)
-local UI_TEXT_COLOR = Color3.new(1, 1, 1)
-local FONT = Enum.Font.SourceSans
+-- Modern UI Constants
+local UI_BG_COLOR = Color3.fromRGB(35, 39, 42)    -- Darker background
+local UI_ELEMENT_COLOR = Color3.fromRGB(44, 47, 51) -- Dark element color
+local UI_SECTION_COLOR = Color3.fromRGB(54, 57, 63) -- Slightly lighter for grouping
+local UI_ACCENT_COLOR = Color3.fromRGB(88, 101, 242) -- Discord-like blurple accent
+local UI_TOGGLE_ON = Color3.fromRGB(67, 181, 129)  -- Greenish on
+local UI_TOGGLE_OFF = Color3.fromRGB(240, 71, 71)   -- Reddish off
+local UI_TEXT_COLOR = Color3.new(0.9, 0.9, 0.9)  -- Off-white text
+local FONT = Enum.Font.SourceSansBold
+local CORNER_RADIUS = 6
 
 local function c(o, p)
     for k, v in pairs(p) do o[k] = v end
     return o
 end
 
-function lib.makeText(parent, text, size, color)
+function lib.makeText(parent, text, size, color, align)
     local l = Instance.new("TextLabel")
     c(l, {
         Parent = parent,
@@ -28,7 +29,9 @@ function lib.makeText(parent, text, size, color)
         BackgroundTransparency = 1,
         TextColor3 = color or UI_TEXT_COLOR,
         TextScaled = true,
-        Font = FONT
+        Font = FONT,
+        TextXAlignment = align or Enum.TextXAlignment.Center,
+        TextYAlignment = Enum.TextYAlignment.Center
     })
     return l
 end
@@ -39,7 +42,7 @@ function lib.makeRect(parent, size, bg, stroke, corner)
 
     local s = Instance.new("UIStroke")
     s.Thickness = 1
-    s.Color = stroke or bg
+    s.Color = stroke or Color3.fromRGB(25, 29, 32) -- Dark border for "shadow" effect
     s.Parent = f
 
     if corner and corner > 0 then
@@ -56,10 +59,11 @@ function lib.Init(title, corner)
     gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
     gui.ResetOnSpawn = false
 
-    local mainFrame = lib.makeRect(gui, Vector2.new(500, 400), UI_BG_COLOR, nil, corner or 10)
+    local mainFrame = lib.makeRect(gui, Vector2.new(500, 400), UI_BG_COLOR, nil, corner or CORNER_RADIUS * 2)
     mainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
 
-    local header = lib.makeText(mainFrame, title or "Window", Vector2.new(500, 40), UI_TEXT_COLOR)
+    local header = lib.makeText(mainFrame, title or "Window", Vector2.new(500, 40), UI_TEXT_COLOR, Enum.TextXAlignment.Center)
+    header.Size = UDim2.new(1, 0, 0, 40)
     header.Position = UDim2.new(0, 0, 0, 0)
     header.TextWrapped = true
 
@@ -84,6 +88,7 @@ function lib.Init(title, corner)
     local tabs = {}
     local keybinds = {}
 
+    -- Dragging Logic
     local dragging, dragInput, dragStart, startPos = false
     header.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 and not dragInput then
@@ -106,6 +111,7 @@ function lib.Init(title, corner)
         end
     end)
 
+    -- Toggle UI (F5)
     local visible = true
     local function toggleUI()
         visible = not visible
@@ -118,9 +124,72 @@ function lib.Init(title, corner)
         end
     end)
 
+    -- === TOAST NOTIFICATION SYSTEM ===
+    local toastContainer = Instance.new("Frame")
+    c(toastContainer, {
+        Parent = gui,
+        Size = UDim2.new(0, 300, 1, 0),
+        Position = UDim2.new(1, -310, 0, 0), -- Bottom right corner position (310 = width + margin)
+        BackgroundTransparency = 1,
+        ClipsDescendants = true
+    })
+
+    local toastLayout = Instance.new("UIListLayout")
+    c(toastLayout, {
+        Parent = toastContainer,
+        FillDirection = Enum.FillDirection.Vertical,
+        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+        VerticalAlignment = Enum.VerticalAlignment.Bottom,
+        Padding = UDim.new(0, 10)
+    })
+
+    function lib.showToast(title, description, duration)
+        local toast = lib.makeRect(toastContainer, Vector2.new(300, 70), UI_ELEMENT_COLOR, Color3.fromRGB(60, 60, 60), CORNER_RADIUS)
+        toast.Size = UDim2.new(0, 300, 0, 0) -- Start small for smooth expansion
+        toast.BackgroundTransparency = 1
+
+        local titleLabel = lib.makeText(toast, title, Vector2.new(280, 20), UI_ACCENT_COLOR, Enum.TextXAlignment.Left)
+        titleLabel.Size = UDim2.new(1, -20, 0, 20)
+        titleLabel.Position = UDim2.new(0, 10, 0, 5)
+        titleLabel.Font = FONT
+
+        local descLabel = lib.makeText(toast, description, Vector2.new(280, 40), UI_TEXT_COLOR, Enum.TextXAlignment.Left)
+        descLabel.Size = UDim2.new(1, -20, 0, 30)
+        descLabel.Position = UDim2.new(0, 10, 0, 25)
+        descLabel.TextScaled = false
+        descLabel.TextSize = 14
+
+        -- Timer Bar
+        local barFrame = lib.makeRect(toast, Vector2.new(280, 3), UI_SECTION_COLOR, nil, 1)
+        barFrame.Size = UDim2.new(1, 0, 0, 3)
+        barFrame.Position = UDim2.new(0, 0, 1, -3)
+
+        local timerBar = lib.makeRect(barFrame, Vector2.new(280, 3), UI_ACCENT_COLOR, nil, 1)
+        timerBar.Size = UDim2.new(1, 0, 1, 0)
+
+        -- 1. Fade In and Expand
+        local tweenInfoIn = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        TweenService:Create(toast, tweenInfoIn, {Size = UDim2.new(0, 300, 0, 70), BackgroundTransparency = 0}):Play()
+        
+        -- 2. Start Timer Bar Shrink
+        local tweenInfoTimer = TweenInfo.new(duration or 3, Enum.EasingStyle.Linear)
+        TweenService:Create(timerBar, tweenInfoTimer, {Size = UDim2.new(0, 0, 1, 0)}):Play()
+
+        task.delay(duration or 3, function()
+            -- 3. Fade Out and Collapse
+            local tweenInfoOut = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+            local fadeOut = TweenService:Create(toast, tweenInfoOut, {Size = UDim2.new(0, 300, 0, 0), BackgroundTransparency = 1})
+            
+            fadeOut.Completed:Wait()
+            toast:Destroy()
+        end)
+    end
+    -- === END TOAST SYSTEM ===
+
     local function createTab(tabName)
         local btn = Instance.new("TextButton")
         c(btn, {Parent = tabBar, Size = UDim2.new(0, 80, 0, 30), BackgroundColor3 = UI_ELEMENT_COLOR, Text = tabName, TextColor3 = UI_TEXT_COLOR, TextScaled = true, AutoButtonColor = true, Font = FONT})
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, CORNER_RADIUS)
 
         local tabFrame = Instance.new("ScrollingFrame")
         c(tabFrame, {Parent = tabContainer, Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Visible = false, CanvasSize = UDim2.new(0, 0, 0, 0)})
@@ -141,7 +210,7 @@ function lib.Init(title, corner)
                 v.button.BackgroundColor3 = UI_ELEMENT_COLOR
             end
             tabFrame.Visible = true
-            btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+            btn.BackgroundColor3 = UI_SECTION_COLOR
         end
 
         btn.MouseButton1Click:Connect(selectTab)
@@ -151,22 +220,24 @@ function lib.Init(title, corner)
     end
 
     local function createSection(tab, sectionName)
-        local section = lib.makeRect(tab.frame, Vector2.new(0, 0), UI_SECTION_COLOR, nil, 5)
+        local section = lib.makeRect(tab.frame, Vector2.new(0, 0), UI_SECTION_COLOR, nil, CORNER_RADIUS)
 
-        local title = lib.makeText(section, sectionName, Vector2.new(0, 25), UI_TEXT_COLOR)
+        local title = lib.makeText(section, sectionName, Vector2.new(0, 25), UI_TEXT_COLOR, Enum.TextXAlignment.Left)
         title.Size = UDim2.new(1, 0, 0, 25)
-        title.Position = UDim2.new(0, 0, 0, 0)
+        title.Position = UDim2.new(0, 10, 0, 0)
+        title.TextScaled = false
+        title.TextSize = 16
 
         local secContent = Instance.new("Frame")
-        c(secContent, {Parent = section, Size = UDim2.new(1, -10, 1, -35), Position = UDim2.new(0, 5, 0, 30), BackgroundTransparency = 1})
+        c(secContent, {Parent = section, Size = UDim2.new(1, -10, 1, -30), Position = UDim2.new(0, 5, 0, 30), BackgroundTransparency = 1})
 
         local layout = Instance.new("UIListLayout")
-        layout.Padding = UDim.new(0, 6)
+        layout.Padding = UDim.new(0, 8)
         layout.SortOrder = Enum.SortOrder.LayoutOrder
         layout.Parent = secContent
 
         layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            section.Size = UDim2.new(1, 0, 0, layout.AbsoluteContentSize.Y + 35)
+            section.Size = UDim2.new(1, 0, 0, layout.AbsoluteContentSize.Y + 40)
         end)
 
         section.Parent = tab.frame
@@ -175,39 +246,49 @@ function lib.Init(title, corner)
     end
 
     local function addLabel(section, text)
-        local l = lib.makeText(section.content, text, Vector2.new(0, 25), UI_TEXT_COLOR)
-        l.TextXAlignment = Enum.TextXAlignment.Left
+        local l = lib.makeText(section.content, text, Vector2.new(0, 25), UI_TEXT_COLOR, Enum.TextXAlignment.Left)
         l.Size = UDim2.new(1, 0, 0, 25)
+        l.TextScaled = false
+        l.TextSize = 14
         return l
     end
 
     local function addSeparator(section)
-        local s = lib.makeRect(section.content, Vector2.new(0, 2), Color3.fromRGB(100, 100, 100), nil, 0)
+        local s = lib.makeRect(section.content, Vector2.new(0, 2), UI_ELEMENT_COLOR, nil, 0)
         s.Size = UDim2.new(1, 0, 0, 2)
         return s
     end
 
     local function addButton(section, text, callback, keybind)
-        local b = Instance.new("TextButton")
-        c(b, {Parent = section.content, Size = UDim2.new(1, 0, 0, 30), BackgroundColor3 = Color3.fromRGB(60, 60, 60), Text = text, TextColor3 = UI_TEXT_COLOR, TextScaled = true, AutoButtonColor = true, Font = FONT})
-        b.MouseButton1Click:Connect(callback or function() end)
+        local b = lib.makeRect(section.content, Vector2.new(0, 35), UI_ELEMENT_COLOR, nil, CORNER_RADIUS)
+        b.Size = UDim2.new(1, 0, 0, 35)
 
+        local btnText = lib.makeText(b, text, Vector2.new(0, 35), UI_TEXT_COLOR, Enum.TextXAlignment.Center)
+        btnText.Size = UDim2.new(1, 0, 1, 0)
+
+        b.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if callback then callback() end
+            end
+        end)
+        
         if keybind then keybinds[keybind] = function(inputState) if inputState == "Begin" then callback() end end end
         return b
     end
 
     local function addToggle(section, text, default, callback, keybind, mode)
-        local f = lib.makeRect(section.content, Vector2.new(0, 30), UI_ELEMENT_COLOR, nil, 5)
-        f.Size = UDim2.new(1, 0, 0, 30)
+        local f = lib.makeRect(section.content, Vector2.new(0, 35), UI_ELEMENT_COLOR, nil, CORNER_RADIUS)
+        f.Size = UDim2.new(1, 0, 0, 35)
 
-        local lbl = lib.makeText(f, text, Vector2.new(0, 30), UI_TEXT_COLOR)
+        local lbl = lib.makeText(f, text, Vector2.new(0, 35), UI_TEXT_COLOR, Enum.TextXAlignment.Left)
         lbl.Size = UDim2.new(0.7, 0, 1, 0)
-        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Position = UDim2.new(0, 10, 0, 0)
+        lbl.TextScaled = false
+        lbl.TextSize = 14
 
-        local box = lib.makeRect(f, Vector2.new(20, 20), default and UI_TOGGLE_ON or UI_TOGGLE_OFF, nil, 3)
-        box.Position = UDim2.new(0.75, 0, 0.5, -10)
-        Instance.new("UICorner", box).CornerRadius = UDim.new(0, 3)
-
+        local box = lib.makeRect(f, Vector2.new(20, 20), default and UI_TOGGLE_ON or UI_TOGGLE_OFF, Color3.fromRGB(30,30,30), 4)
+        box.Position = UDim2.new(1, -30, 0.5, -10)
+        
         local toggled = default
 
         local function toggleState()
@@ -261,26 +342,27 @@ function lib.Init(title, corner)
     end
 
     local function addSlider(section, text, min, max, default, callback)
-        local frameHeight = 40
-        local f = lib.makeRect(section.content, Vector2.new(0, frameHeight), UI_ELEMENT_COLOR, nil, 5)
+        local frameHeight = 45
+        local f = lib.makeRect(section.content, Vector2.new(0, frameHeight), UI_ELEMENT_COLOR, nil, CORNER_RADIUS)
         f.Size = UDim2.new(1, 0, 0, frameHeight)
 
         local currentValue = default
         
-        local label = lib.makeText(f, text .. ": " .. string.format("%.1f", currentValue), Vector2.new(0, 20), UI_TEXT_COLOR)
-        label.Size = UDim2.new(1, 0, 0, 18)
-        label.Position = UDim2.new(0, 5, 0, 2)
-        label.TextXAlignment = Enum.TextXAlignment.Left
+        local label = lib.makeText(f, text .. ": " .. string.format("%.1f", currentValue), Vector2.new(0, 20), UI_TEXT_COLOR, Enum.TextXAlignment.Left)
+        label.Size = UDim2.new(1, -10, 0, 18)
+        label.Position = UDim2.new(0, 10, 0, 3)
+        label.TextScaled = false
+        label.TextSize = 14
 
-        local sliderBar = lib.makeRect(f, Vector2.new(0, 8), Color3.fromRGB(40, 40, 40), nil, 4)
-        sliderBar.Size = UDim2.new(1, -10, 0, 8)
-        sliderBar.Position = UDim2.new(0, 5, 0, 22)
+        local sliderBar = lib.makeRect(f, Vector2.new(0, 6), UI_SECTION_COLOR, nil, 3)
+        sliderBar.Size = UDim2.new(1, -20, 0, 6)
+        sliderBar.Position = UDim2.new(0, 10, 0, 25)
         
-        local fill = lib.makeRect(sliderBar, Vector2.new(0, 8), UI_ACCENT_COLOR, nil, 4)
+        local fill = lib.makeRect(sliderBar, Vector2.new(0, 6), UI_ACCENT_COLOR, nil, 3)
         fill.Size = UDim2.new(0, 0, 1, 0)
         
-        local thumb = lib.makeRect(sliderBar, Vector2.new(12, 12), Color3.fromRGB(255, 255, 255), nil, 6)
-        thumb.Position = UDim2.new(0, -6, 0.5, -6)
+        local thumb = lib.makeRect(sliderBar, Vector2.new(14, 14), Color3.new(1, 1, 1), Color3.fromRGB(30,30,30), 7)
+        thumb.Position = UDim2.new(0, -7, 0.5, -7)
         
         local isDragging = false
 
@@ -292,8 +374,7 @@ function lib.Init(title, corner)
             local ratio = relativeX / barWidth
             
             local value = min + (max - min) * ratio
-            
-            value = math.floor(value * 10 + 0.5) / 10
+            value = math.floor(value * 10 + 0.5) / 10 -- Round to one decimal
             
             return value, ratio
         end
@@ -301,7 +382,7 @@ function lib.Init(title, corner)
         local function updateUI(value, ratio)
             currentValue = value
             fill.Size = UDim2.new(ratio, 0, 1, 0)
-            thumb.Position = UDim2.new(ratio, -6, 0.5, -6)
+            thumb.Position = UDim2.new(ratio, -7, 0.5, -7)
             label.Text = text .. ": " .. string.format("%.1f", currentValue)
             if callback then callback(currentValue) end
         end
@@ -368,7 +449,8 @@ function lib.Init(title, corner)
         createTab = createTab, createSection = createSection,
         addLabel = addLabel, addSeparator = addSeparator,
         addButton = addButton, addToggle = addToggle,
-        addSlider = addSlider
+        addSlider = addSlider,
+        showToast = lib.showToast -- EXPOSE TOAST FUNCTION
     }
 end
 
