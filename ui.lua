@@ -82,7 +82,7 @@ function lib.Init(title, corner)
     })
 
     local tabContainer = Instance.new("Frame")
-    c(tabContainer, {Parent = content, Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 30), BackgroundTransparency = 1})
+    c(tabContainer, {Parent = content, Size = UDim2.new(1, 0, 1, -30), Position = UDim2.new(0, 0, 0, 30), BackgroundTransparency = 1})
 
     local tabs = {}
     local keybinds = {}
@@ -143,12 +143,10 @@ function lib.Init(title, corner)
         else
             local fadeOut = TweenService:Create(mainFrame, tweenInfoOut, {BackgroundTransparency = 1})
             
-            -- Start tweening children immediately
             tweenChildrenTransparency(mainFrame, 1, tweenInfoOut)
             
             fadeOut:Play()
             
-            -- Only hide the frame after the main background tween completes
             fadeOut.Completed:Wait()
             mainFrame.Visible = false
         end
@@ -238,7 +236,6 @@ function lib.Init(title, corner)
             
             fadeOut:Play()
             
-            -- Wait for the fade-out to complete before destroying the toast
             fadeOut.Completed:Wait()
             if toast.Parent then
                 toast:Destroy()
@@ -281,15 +278,17 @@ function lib.Init(title, corner)
 
     local function createSection(tab, sectionName)
         local section = lib.makeRect(tab.frame, Vector2.new(0, 0), UI_SECTION_COLOR, nil, CORNER_RADIUS)
+        section.Size = UDim2.new(1, 0, 0, 0) -- Start with zero height, adjusted by layout
 
         local title = lib.makeText(section, sectionName, Vector2.new(0, 25), UI_TEXT_COLOR, Enum.TextXAlignment.Left)
-        title.Size = UDim2.new(1, 0, 0, 25)
+        title.Size = UDim2.new(1, -20, 0, 25)
         title.Position = UDim2.new(0, 10, 0, 0)
         title.TextScaled = false
         title.TextSize = 16
 
         local secContent = Instance.new("Frame")
-        c(secContent, {Parent = section, Size = UDim2.new(1, -10, 1, -30), Position = UDim2.new(0, 5, 0, 30), BackgroundTransparency = 1})
+        -- Content frame is slightly inset and takes the remaining height
+        c(secContent, {Parent = section, Size = UDim2.new(1, -20, 1, -35), Position = UDim2.new(0, 10, 0, 30), BackgroundTransparency = 1})
 
         local layout = Instance.new("UIListLayout")
         layout.Padding = UDim.new(0, 8)
@@ -297,6 +296,7 @@ function lib.Init(title, corner)
         layout.Parent = secContent
 
         layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            -- Set the section height based on its content plus padding
             section.Size = UDim2.new(1, 0, 0, layout.AbsoluteContentSize.Y + 40)
         end)
 
@@ -314,12 +314,14 @@ function lib.Init(title, corner)
     end
 
     local function addSeparator(section)
-        local s = lib.makeRect(section.content, Vector2.new(0, 2), UI_ELEMENT_COLOR, nil, 0)
+        -- Separator should use UI_SECTION_COLOR to contrast with elements, or UI_BG_COLOR for a strong divider
+        local s = lib.makeRect(section.content, Vector2.new(0, 2), UI_SECTION_COLOR, nil, 0)
         s.Size = UDim2.new(1, 0, 0, 2)
         return s
     end
 
     local function addButton(section, text, callback, keybind)
+        -- Element background color and UICorner applied
         local b = lib.makeRect(section.content, Vector2.new(0, 35), UI_ELEMENT_COLOR, nil, CORNER_RADIUS)
         b.Size = UDim2.new(1, 0, 0, 35)
 
@@ -337,6 +339,7 @@ function lib.Init(title, corner)
     end
 
     local function addToggle(section, text, default, callback, keybind, mode)
+        -- Element background color and UICorner applied
         local f = lib.makeRect(section.content, Vector2.new(0, 35), UI_ELEMENT_COLOR, nil, CORNER_RADIUS)
         f.Size = UDim2.new(1, 0, 0, 35)
 
@@ -403,6 +406,7 @@ function lib.Init(title, corner)
 
     local function addSlider(section, text, min, max, default, callback)
         local frameHeight = 45
+        -- Element background color and UICorner applied
         local f = lib.makeRect(section.content, Vector2.new(0, frameHeight), UI_ELEMENT_COLOR, nil, CORNER_RADIUS)
         f.Size = UDim2.new(1, 0, 0, frameHeight)
 
