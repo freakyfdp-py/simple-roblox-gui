@@ -5,7 +5,6 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
--- UI Constants
 local UI_BG_COLOR = Color3.fromRGB(30, 30, 30)
 local UI_ELEMENT_COLOR = Color3.fromRGB(50, 50, 50)
 local UI_SECTION_COLOR = Color3.fromRGB(40, 40, 40)
@@ -15,13 +14,10 @@ local UI_TOGGLE_OFF = Color3.fromRGB(255, 0, 0)
 local UI_TEXT_COLOR = Color3.new(1, 1, 1)
 local FONT = Enum.Font.SourceSans
 
--- Helper function to apply properties to an instance (shorthand)
 local function c(o, p)
     for k, v in pairs(p) do o[k] = v end
     return o
 end
-
---- UI Element Constructors ---
 
 function lib.makeText(parent, text, size, color)
     local l = Instance.new("TextLabel")
@@ -53,8 +49,6 @@ function lib.makeRect(parent, size, bg, stroke, corner)
     end
     return f
 end
-
---- Core Window Initialization ---
 
 function lib.Init(title, corner)
     local gui = Instance.new("ScreenGui")
@@ -90,7 +84,6 @@ function lib.Init(title, corner)
     local tabs = {}
     local keybinds = {}
 
-    -- Dragging Logic
     local dragging, dragInput, dragStart, startPos = false
     header.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 and not dragInput then
@@ -113,7 +106,6 @@ function lib.Init(title, corner)
         end
     end)
 
-    -- Toggle UI (F5)
     local visible = true
     local function toggleUI()
         visible = not visible
@@ -125,8 +117,6 @@ function lib.Init(title, corner)
             toggleUI()
         end
     end)
-
-    --- Tabs ---
 
     local function createTab(tabName)
         local btn = Instance.new("TextButton")
@@ -160,8 +150,6 @@ function lib.Init(title, corner)
         return tabs[tabName]
     end
 
-    --- Sections ---
-
     local function createSection(tab, sectionName)
         local section = lib.makeRect(tab.frame, Vector2.new(0, 0), UI_SECTION_COLOR, nil, 5)
 
@@ -185,8 +173,6 @@ function lib.Init(title, corner)
         tab.sections[sectionName] = {frame = section, content = secContent}
         return tab.sections[sectionName]
     end
-
-    --- Elements ---
 
     local function addLabel(section, text)
         local l = lib.makeText(section.content, text, Vector2.new(0, 25), UI_TEXT_COLOR)
@@ -267,7 +253,11 @@ function lib.Init(title, corner)
                 end
             end
         end
-        return {frame = f, setState = function(state) toggled = state; box.BackgroundColor3 = state and UI_TOGGLE_ON or UI_TOGGLE_OFF end}
+        return {
+            frame = f, 
+            setState = function(state) toggled = state; box.BackgroundColor3 = state and UI_TOGGLE_ON or UI_TOGGLE_OFF end,
+            getState = function() return toggled end
+        }
     end
 
     local function addSlider(section, text, min, max, default, callback)
@@ -298,13 +288,11 @@ function lib.Init(title, corner)
             local barPos = sliderBar.AbsolutePosition.X
             local barWidth = sliderBar.AbsoluteSize.X
             
-            -- Calculate the horizontal distance of the mouse relative to the bar's start
             local relativeX = math.clamp(inputX - barPos, 0, barWidth)
             local ratio = relativeX / barWidth
             
             local value = min + (max - min) * ratio
             
-            -- Round to one decimal place
             value = math.floor(value * 10 + 0.5) / 10
             
             return value, ratio
@@ -325,23 +313,20 @@ function lib.Init(title, corner)
             end
         end
 
-        -- Clicking anywhere on the bar/thumb starts the drag and updates the value
         local function startDrag(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 isDragging = true
-                handleInput(input) -- Handle initial click position
+                handleInput(input)
             end
         end
         
-        -- Stop dragging globally
         local function endDrag(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 isDragging = false
             end
         end
         
-        -- Handle movement globally while dragging is active
-        local function moveDrag(input)
+        local function moveDrag(input, gameProcessedEvent)
             if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
                 handleInput(input)
             end
@@ -353,7 +338,6 @@ function lib.Init(title, corner)
         UserInputService.InputChanged:Connect(moveDrag)
         UserInputService.InputEnded:Connect(endDrag)
         
-        -- Initial state update
         local initRatio = (default - min) / (max - min)
         updateUI(default, initRatio)
         
@@ -368,12 +352,11 @@ function lib.Init(title, corner)
         }
     end
 
-    -- Input for keybinds
-    UserInputService.InputBegan:Connect(function(input)
-        if not input.Processed and keybinds[input.KeyCode] then keybinds[input.KeyCode]("Begin") end
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if not processed and keybinds[input.KeyCode] then keybinds[input.KeyCode]("Begin") end
     end)
-    UserInputService.InputEnded:Connect(function(input)
-        if not input.Processed and keybinds[input.KeyCode] then keybinds[input.KeyCode]("End") end
+    UserInputService.InputEnded:Connect(function(input, processed)
+        if not processed and keybinds[input.KeyCode] then keybinds[input.KeyCode]("End") end
     end)
 
     return {
