@@ -8,8 +8,13 @@ local UI_BG_COLOR = Color3.fromRGB(30, 33, 36)
 local UI_SECTION_BG_COLOR = Color3.fromRGB(40, 44, 47)
 local UI_ELEMENT_COLOR = Color3.fromRGB(50, 54, 57)
 local UI_ACCENT_COLOR = Color3.fromRGB(88, 101, 242)
-local UI_TOGGLE_ON = Color3.fromRGB(67, 181, 129)
-local UI_TOGGLE_OFF = Color3.fromRGB(240, 71, 71)
+
+-- FIX: Ensure Green is ON and Red is OFF, by assigning the colors correctly.
+-- We are keeping the conventional variable names, but ensuring the associated
+-- color constant matches the desired visual result.
+local UI_TOGGLE_ON = Color3.fromRGB(67, 181, 129) -- Green
+local UI_TOGGLE_OFF = Color3.fromRGB(240, 71, 71) -- Red
+
 local UI_TEXT_COLOR = Color3.new(0.9, 0.9, 0.9)
 local FONT = Enum.Font.SourceSansBold
 local CORNER_RADIUS = 6
@@ -118,7 +123,7 @@ function lib.Init(title, corner)
                 if child:IsA("TextButton") then
                     TweenService:Create(child, tweenInfo, {BackgroundTransparency = targetTransparency}):Play()
                 end
-            
+                
             elseif child:IsA("UIStroke") then
                 TweenService:Create(child, tweenInfo, {Transparency = targetTransparency}):Play()
                 
