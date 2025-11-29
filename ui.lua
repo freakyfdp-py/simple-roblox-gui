@@ -1,546 +1,610 @@
-local RunService = game:GetService('RunService')
-local TweenService = game:GetService('TweenService')
-local InputService = game:GetService('UserInputService')
-local CoreGui = game:GetService('CoreGui')
-local LocalPlayer = game:GetService('Players').LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
+local InputService = game:GetService('UserInputService');
+local TextService = game:GetService('TextService');
+local TweenService = game:GetService('TweenService');
+local CoreGui = game:GetService('CoreGui');
+local RenderStepped = game:GetService('RunService').RenderStepped;
+local LocalPlayer = game:GetService('Players').LocalPlayer;
+local Mouse = LocalPlayer:GetMouse();
 
-local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end)
+local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 
-local ScreenGui = Instance.new('ScreenGui')
-ProtectGui(ScreenGui)
-ScreenGui.Name = "AuraUI_ScreenGui"
-ScreenGui.DisplayOrder = 999
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-ScreenGui.Parent = CoreGui
+local ScreenGui = Instance.new('ScreenGui');
+ProtectGui(ScreenGui);
 
-local Toggles = {}
-local Options = {}
-getgenv().Toggles = Toggles
-getgenv().Options = Options
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
+ScreenGui.Parent = CoreGui;
 
-local AuraUI = {
+local Toggles = {};
+local Options = {};
+
+getgenv().Toggles = Toggles;
+getgenv().Options = Options;
+
+local Library = {
     Registry = {};
+    RegistryMap = {};
+
+    HudRegistry = {};
+
+    FontColor = Color3.fromRGB(255, 255, 255);
+    MainColor = Color3.fromRGB(28, 28, 28);
+    BackgroundColor = Color3.fromRGB(20, 20, 20);
+    AccentColor = Color3.fromRGB(0, 85, 255);
+    OutlineColor = Color3.fromRGB(50, 50, 50);
+
+    Black = Color3.new(0, 0, 0);
+
     OpenedFrames = {};
     CurrentWindow = nil;
-
-    FontColor = Color3.fromRGB(30, 30, 30);
-    AccentColor = Color3.fromRGB(0, 180, 200);
-    MainColor = Color3.fromRGB(245, 245, 250);
-    OutlineColor = Color3.fromRGB(200, 200, 200);
-    ShadowColor = Color3.new(0, 0, 0);
-    Transparency = 0.2;
-
-    WINDOW_SIZE = UDim2.new(0, 600, 0, 400);
-    TAB_BAR_WIDTH = 150;
+    
+    WINDOW_SIZE = UDim2.new(0, 500, 0, 350);
+    TAB_BAR_WIDTH = 130;
     FONT = Enum.Font.GothamSemibold;
     FONT_SIZE = 14;
-    CORNER_RADIUS = 12;
-}
+    CORNER_RADIUS = 6;
+};
 
-function AuraUI:Create(Class, Properties)
-    local Element = Instance.new(Class)
+function Library:Create(Class, Properties)
+    local Element = Instance.new(Class);
     for Key, Value in pairs(Properties) do
-        Element[Key] = Value
+        Element[Key] = Value;
     end
-    return Element
-end
+    return Element;
+end;
 
-local function ApplyGlassStyle(Frame, CornerRadius, Transparency, Color)
-    Frame.BackgroundColor3 = Color or AuraUI.MainColor
-    Frame.BackgroundTransparency = Transparency or AuraUI.Transparency
+function Library:Style(Frame, CornerRadius, Color, Outline, Transparency)
+    Frame.BackgroundColor3 = Color or Library.MainColor;
+    Frame.BackgroundTransparency = Transparency or 0;
     
-    local Corner = AuraUI:Create('UICorner', {
-        CornerRadius = UDim.new(0, CornerRadius or AuraUI.CORNER_RADIUS),
-        Parent = Frame
-    })
-
-    local Stroke = AuraUI:Create('UIStroke', {
-        Thickness = 1,
-        Color = AuraUI.OutlineColor,
-        Transparency = 0.5,
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-        Parent = Frame
-    })
-
-    local Gradient = AuraUI:Create('UIGradient', {
-        Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color or AuraUI.MainColor),
-            ColorSequenceKeypoint.new(1, (Color or AuraUI.MainColor) * Color3.new(0.95, 0.95, 0.95))
-        }),
-        Rotation = 90,
-        Transparency = NumberSequence.new(0),
-        Parent = Frame
-    })
-
-    return Frame, Corner, Stroke
-end
-
-function AuraUI:Window(Name)
-    if AuraUI.CurrentWindow then
-        warn("AuraUI: Only one main window is supported.")
-        return AuraUI.CurrentWindow
+    if CornerRadius then
+        Library:Create('UICorner', {
+            CornerRadius = UDim.new(0, CornerRadius),
+            Parent = Frame
+        });
     end
 
-    local Window = AuraUI:Create('Frame', {
-        Name = Name or "AuraUI_Window",
-        Size = AuraUI.WINDOW_SIZE,
-        Position = UDim2.new(0.5, -AuraUI.WINDOW_SIZE.Offset.X / 2, 0.5, -AuraUI.WINDOW_SIZE.Offset.Y / 2),
-        Parent = ScreenGui,
-        Draggable = true,
-        ClipsDescendants = true,
-    })
-    AuraUI.CurrentWindow = Window
+    if Outline then
+        Library:Create('UIStroke', {
+            Thickness = 1;
+            Color = Library.OutlineColor;
+            Transparency = 0.5;
+            ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+            Parent = Frame
+        });
+    end
+    
+    return Frame;
+end;
 
-    ApplyGlassStyle(Window, AuraUI.CORNER_RADIUS, AuraUI.Transparency, AuraUI.MainColor)
+function Library:Window(Name)
+    if Library.CurrentWindow then
+        warn("Linoria: Only one main window is supported.");
+        return Library.CurrentWindow;
+    end
 
-    local TabBar = AuraUI:Create('Frame', {
-        Name = "TabBar",
-        Size = UDim2.new(0, AuraUI.TAB_BAR_WIDTH, 1, 0),
-        Position = UDim2.new(0, 0, 0, 0),
-        Parent = Window,
-    })
-    ApplyGlassStyle(TabBar, AuraUI.CORNER_RADIUS - 5, AuraUI.Transparency + 0.1, AuraUI.MainColor * Color3.new(0.95, 0.95, 0.95))
+    local Window = {};
+    local Outer = Library:Create('Frame', {
+        Name = Name or "Linoria_Window";
+        Size = Library.WINDOW_SIZE;
+        Position = UDim2.new(0.5, -Library.WINDOW_SIZE.Offset.X / 2, 0.5, -Library.WINDOW_SIZE.Offset.Y / 2);
+        Parent = ScreenGui;
+        Draggable = true;
+        ClipsDescendants = true;
+    });
+    Library.CurrentWindow = Outer;
 
-    local TabListLayout = AuraUI:Create('UIListLayout', {
-        HorizontalAlignment = Enum.HorizontalAlignment.Left,
-        VerticalAlignment = Enum.VerticalAlignment.Top,
-        Padding = UDim.new(0, 8),
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        Parent = TabBar,
-    })
-    AuraUI:Create('UIPadding', {
-        PaddingTop = UDim.new(0, 15),
-        PaddingBottom = UDim.new(0, 15),
-        PaddingLeft = UDim.new(0, 10),
-        PaddingRight = UDim.new(0, 10),
-        Parent = TabBar,
-    })
+    Library:Style(Outer, Library.CORNER_RADIUS, Library.BackgroundColor, true, 0);
 
-    local ContentArea = AuraUI:Create('Frame', {
-        Name = "ContentArea",
-        Size = UDim2.new(1, -AuraUI.TAB_BAR_WIDTH, 1, 0),
-        Position = UDim2.new(0, AuraUI.TAB_BAR_WIDTH, 0, 0),
-        BackgroundColor3 = AuraUI.MainColor,
-        BackgroundTransparency = 1,
-        Parent = Window,
-    })
+    local Header = Library:Create('Frame', {
+        Name = "Header";
+        Size = UDim2.new(1, 0, 0, 30);
+        Position = UDim2.new(0, 0, 0, 0);
+        BackgroundColor3 = Library.MainColor;
+        Parent = Outer;
+    });
+    Library:Style(Header, nil, Library.MainColor, true, 0); 
+    
+    local Title = Library:Create('TextLabel', {
+        Name = "Title";
+        Text = Name or "Linoria UI";
+        Font = Library.FONT;
+        TextSize = Library.FONT_SIZE + 2;
+        TextColor3 = Library.FontColor;
+        BackgroundTransparency = 1;
+        Size = UDim2.new(1, 0, 1, 0);
+        TextXAlignment = Enum.TextXAlignment.Center;
+        Parent = Header;
+    });
 
-    Window.Tabs = {}
-    Window.CurrentTab = nil
+    local TabBar = Library:Create('Frame', {
+        Name = "TabBar";
+        Size = UDim2.new(0, Library.TAB_BAR_WIDTH, 1, -30);
+        Position = UDim2.new(0, 0, 0, 30);
+        BackgroundColor3 = Library.MainColor;
+        Parent = Outer;
+    });
+    Library:Style(TabBar, nil, Library.MainColor, true, 0);
 
-    function Window:CreateTab(Name, Icon)
-        local TabButton = AuraUI:Create('TextButton', {
-            Name = "Tab_" .. Name:gsub(" ", "_"),
-            Text = Name,
-            Font = AuraUI.FONT,
-            TextSize = AuraUI.FONT_SIZE,
-            TextColor3 = AuraUI.FontColor,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 30),
-            Parent = TabBar,
-            LayoutOrder = #Window.Tabs + 1
-        })
+    local TabListLayout = Library:Create('UIListLayout', {
+        HorizontalAlignment = Enum.HorizontalAlignment.Left;
+        VerticalAlignment = Enum.VerticalAlignment.Top;
+        Padding = UDim.new(0, 5);
+        SortOrder = Enum.SortOrder.LayoutOrder;
+        Parent = TabBar;
+    });
+    Library:Create('UIPadding', {
+        PaddingTop = UDim.new(0, 5);
+        PaddingBottom = UDim.new(0, 5);
+        PaddingLeft = UDim.new(0, 5);
+        PaddingRight = UDim.new(0, 5);
+        Parent = TabBar;
+    });
+
+    local ContentArea = Library:Create('Frame', {
+        Name = "ContentArea";
+        Size = UDim2.new(1, -Library.TAB_BAR_WIDTH, 1, -30);
+        Position = UDim2.new(0, Library.TAB_BAR_WIDTH, 0, 30);
+        BackgroundColor3 = Library.BackgroundColor;
+        BackgroundTransparency = 0;
+        Parent = Outer;
+    });
+    Library:Style(ContentArea, nil, Library.BackgroundColor, false, 0);
+
+    Outer.Tabs = {};
+    Outer.CurrentTab = nil;
+
+    function Outer:CreateTab(Name, Icon)
+        local TabButton = Library:Create('TextButton', {
+            Name = "Tab_" .. Name:gsub(" ", "_");
+            Text = Name;
+            Font = Library.FONT;
+            TextSize = Library.FONT_SIZE;
+            TextColor3 = Library.FontColor;
+            TextXAlignment = Enum.TextXAlignment.Left;
+            BackgroundColor3 = Library.MainColor;
+            BackgroundTransparency = 0;
+            Size = UDim2.new(1, 0, 0, 25);
+            Parent = TabBar;
+            LayoutOrder = #Outer.Tabs + 1;
+        });
+        Library:Style(TabButton, Library.CORNER_RADIUS - 3, Library.MainColor, false, 0);
         
-        local AccentBar = AuraUI:Create('Frame', {
-            Name = "AccentBar",
-            Size = UDim2.new(0, 3, 1, 0),
-            Position = UDim2.new(0, 0, 0, 0),
-            BackgroundColor3 = AuraUI.AccentColor,
-            BackgroundTransparency = 1,
-            Parent = TabButton
-        })
-        ApplyGlassStyle(AccentBar, 2, 0.5, AuraUI.AccentColor)
+        local AccentBar = Library:Create('Frame', {
+            Name = "AccentBar";
+            Size = UDim2.new(0, 3, 1, 0);
+            Position = UDim2.new(0, 0, 0, 0);
+            BackgroundColor3 = Library.AccentColor;
+            BackgroundTransparency = 1;
+            Parent = TabButton;
+        });
 
-        local TabFrame = AuraUI:Create('ScrollingFrame', {
-            Name = "TabContent_" .. Name:gsub(" ", "_"),
-            Size = UDim2.new(1, -15, 1, -15),
-            Position = UDim2.new(0, 15, 0, 15),
-            CanvasSize = UDim2.new(0, 0, 0, 0),
-            ScrollBarImageColor3 = AuraUI.AccentColor,
-            ScrollBarThickness = 6,
-            BackgroundTransparency = 1,
-            Parent = ContentArea,
-            Visible = false
-        })
+        local TabFrame = Library:Create('ScrollingFrame', {
+            Name = "TabContent_" .. Name:gsub(" ", "_");
+            Size = UDim2.new(1, -10, 1, -10);
+            Position = UDim2.new(0, 5, 0, 5);
+            CanvasSize = UDim2.new(0, 0, 0, 0);
+            ScrollBarImageColor3 = Library.AccentColor;
+            ScrollBarThickness = 6;
+            BackgroundTransparency = 1;
+            Parent = ContentArea;
+            Visible = false;
+        });
 
-        local ContentLayout = AuraUI:Create('UIListLayout', {
-            HorizontalAlignment = Enum.HorizontalAlignment.Center,
-            VerticalAlignment = Enum.VerticalAlignment.Top,
-            Padding = UDim.new(0, 10),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-            Parent = TabFrame,
-        })
+        local ContentLayout = Library:Create('UIListLayout', {
+            HorizontalAlignment = Enum.HorizontalAlignment.Center;
+            VerticalAlignment = Enum.VerticalAlignment.Top;
+            Padding = UDim.new(0, 10);
+            SortOrder = Enum.SortOrder.LayoutOrder;
+            Parent = TabFrame;
+        });
+        Library:Create('UIPadding', {
+            PaddingTop = UDim.new(0, 5);
+            PaddingBottom = UDim.new(0, 5);
+            PaddingLeft = UDim.new(0, 5);
+            PaddingRight = UDim.new(0, 5);
+            Parent = TabFrame;
+        });
         
         local Tab = {
             Button = TabButton;
             Frame = TabFrame;
             Layout = ContentLayout;
             Elements = {};
-        }
+        };
 
         function TabButton.MouseButton1Click()
-            if Window.CurrentTab == Tab then return end
+            if Outer.CurrentTab == Tab then return end;
             
-            if Window.CurrentTab then
-                TweenService:Create(Window.CurrentTab.Button.AccentBar, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
-                Window.CurrentTab.Button.TextColor3 = AuraUI.FontColor
-                Window.CurrentTab.Frame.Visible = false
+            if Outer.CurrentTab then
+                TweenService:Create(Outer.CurrentTab.Button.AccentBar, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play();
+                Outer.CurrentTab.Button.TextColor3 = Library.FontColor;
+                TweenService:Create(Outer.CurrentTab.Button, TweenInfo.new(0.2), {BackgroundColor3 = Library.MainColor}):Play();
+                Outer.CurrentTab.Frame.Visible = false;
             end
 
-            TweenService:Create(AccentBar, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
-            TabButton.TextColor3 = AuraUI.AccentColor
-            TabFrame.Visible = true
-            Window.CurrentTab = Tab
+            TweenService:Create(AccentBar, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play();
+            TabButton.TextColor3 = Library.AccentColor;
+            TweenService:Create(TabButton, TweenInfo.new(0.2), {BackgroundColor3 = Library.MainColor + Color3.new(0.1, 0.1, 0.1)}):Play();
+            TabFrame.Visible = true;
+            Outer.CurrentTab = Tab;
 
-            RunService.Heartbeat:Wait()
-            TabFrame.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y)
-        end
+            RenderStepped:Wait();
+            TabFrame.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 10);
+        end;
+
+        TabButton.MouseEnter:Connect(function()
+            if Outer.CurrentTab ~= Tab then
+                TweenService:Create(TabButton, TweenInfo.new(0.15), {BackgroundColor3 = Library.MainColor + Color3.new(0.05, 0.05, 0.05)}):Play();
+            end
+        end);
         
-        if #Window.Tabs == 0 then
-            TabButton.MouseButton1Click()
-        end
+        TabButton.MouseLeave:Connect(function()
+            if Outer.CurrentTab ~= Tab then
+                TweenService:Create(TabButton, TweenInfo.new(0.15), {BackgroundColor3 = Library.MainColor}):Play();
+            end
+        end);
+        
+        if #Outer.Tabs == 0 then
+            TabButton.MouseButton1Click();
+        end;
         
         function Tab:Label(Text)
-            local LabelFrame = AuraUI:Create('Frame', {
-                Name = "LabelFrame",
-                Size = UDim2.new(1, 0, 0, 20),
-                BackgroundTransparency = 1,
-                Parent = TabFrame
-            })
+            local LabelFrame = Library:Create('Frame', {
+                Name = "LabelFrame";
+                Size = UDim2.new(1, 0, 0, 20);
+                BackgroundTransparency = 1;
+                Parent = TabFrame;
+            });
 
-            local Label = AuraUI:Create('TextLabel', {
-                Name = "Label",
-                Text = Text,
-                Font = AuraUI.FONT,
-                TextSize = AuraUI.FONT_SIZE + 2,
-                TextColor3 = AuraUI.FontColor * Color3.new(0.8, 0.8, 0.8),
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 1, 0),
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = LabelFrame
-            })
+            local Label = Library:Create('TextLabel', {
+                Name = "Label";
+                Text = Text;
+                Font = Library.FONT;
+                TextSize = Library.FONT_SIZE + 2;
+                TextColor3 = Library.FontColor * Color3.new(0.8, 0.8, 0.8);
+                BackgroundTransparency = 1;
+                Size = UDim2.new(1, 0, 1, 0);
+                TextXAlignment = Enum.TextXAlignment.Left;
+                Parent = LabelFrame;
+            });
             
             local LabelElement = {
                 Label = Label;
-            }
+            };
 
             function LabelElement:SetText(NewText)
-                Label.Text = NewText
-                RunService.Heartbeat:Wait()
-                TabFrame.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y)
-            end
+                Label.Text = NewText;
+                RenderStepped:Wait();
+                TabFrame.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 10);
+            end;
 
-            table.insert(Tab.Elements, LabelFrame)
-            return LabelElement
-        end
+            table.insert(Tab.Elements, LabelFrame);
+            return LabelElement;
+        end;
         
         function Tab:Divider()
-            local DividerFrame = AuraUI:Create('Frame', {
-                Name = "DividerFrame",
-                Size = UDim2.new(1, 0, 0, 20),
-                BackgroundTransparency = 1,
-                Parent = TabFrame
-            })
+            local DividerFrame = Library:Create('Frame', {
+                Name = "DividerFrame";
+                Size = UDim2.new(1, 0, 0, 20);
+                BackgroundTransparency = 1;
+                Parent = TabFrame;
+            });
             
-            local Line = AuraUI:Create('Frame', {
-                Name = "Line",
-                Size = UDim2.new(1, -20, 0, 1),
-                Position = UDim2.new(0.5, 0, 0.5, 0),
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                BackgroundColor3 = AuraUI.OutlineColor,
-                BackgroundTransparency = AuraUI.Transparency + 0.5,
-                Parent = DividerFrame
-            })
+            local Line = Library:Create('Frame', {
+                Name = "Line";
+                Size = UDim2.new(1, -10, 0, 1);
+                Position = UDim2.new(0.5, 0, 0.5, 0);
+                AnchorPoint = Vector2.new(0.5, 0.5);
+                BackgroundColor3 = Library.OutlineColor;
+                BackgroundTransparency = 0.5;
+                Parent = DividerFrame;
+            });
 
-            table.insert(Tab.Elements, DividerFrame)
-        end
+            table.insert(Tab.Elements, DividerFrame);
+        end;
 
         function Tab:Toggle(Name, Default)
             local ToggleElement = {
-                Value = Default or false,
-                CallbackFunc = function() end,
-            }
-            Toggles[Name] = ToggleElement
+                Value = Default or false;
+                CallbackFunc = function() end;
+            };
+            Toggles[Name] = ToggleElement;
 
-            local ToggleFrame = AuraUI:Create('Frame', {
-                Name = "Toggle_" .. Name:gsub(" ", "_"),
-                Size = UDim2.new(1, 0, 0, 30),
-                BackgroundTransparency = 1,
-                Parent = TabFrame
-            })
+            local ToggleFrame = Library:Create('Frame', {
+                Name = "Toggle_" .. Name:gsub(" ", "_");
+                Size = UDim2.new(1, 0, 0, 30);
+                BackgroundTransparency = 1;
+                Parent = TabFrame;
+            });
 
-            local Label = AuraUI:Create('TextLabel', {
-                Name = "Label",
-                Text = Name,
-                Font = AuraUI.FONT,
-                TextSize = AuraUI.FONT_SIZE,
-                TextColor3 = AuraUI.FontColor,
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, -40, 1, 0),
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = ToggleFrame
-            })
+            local Label = Library:Create('TextLabel', {
+                Name = "Label";
+                Text = Name;
+                Font = Library.FONT;
+                TextSize = Library.FONT_SIZE;
+                TextColor3 = Library.FontColor;
+                BackgroundTransparency = 1;
+                Size = UDim2.new(1, -40, 1, 0);
+                TextXAlignment = Enum.TextXAlignment.Left;
+                Parent = ToggleFrame;
+            });
 
-            local IndicatorSize = 20
-            local Indicator = AuraUI:Create('TextButton', {
-                Name = "Indicator",
-                Size = UDim2.new(0, IndicatorSize * 2, 0, IndicatorSize),
-                Position = UDim2.new(1, -IndicatorSize * 2, 0.5, -IndicatorSize / 2),
-                BackgroundTransparency = 0,
-                Text = "",
-                Parent = ToggleFrame,
-                
-            })
-            ApplyGlassStyle(Indicator, IndicatorSize / 2, AuraUI.Transparency + 0.1, AuraUI.OutlineColor)
+            local IndicatorSize = 20;
+            local Indicator = Library:Create('TextButton', {
+                Name = "Indicator";
+                Size = UDim2.new(0, IndicatorSize * 2, 0, IndicatorSize);
+                Position = UDim2.new(1, -IndicatorSize * 2, 0.5, -IndicatorSize / 2);
+                BackgroundColor3 = Library.OutlineColor;
+                BackgroundTransparency = 0;
+                Text = "";
+                Parent = ToggleFrame;
+            });
+            Library:Style(Indicator, IndicatorSize / 2, Library.OutlineColor, true, 0);
 
-            local ToggleCircle = AuraUI:Create('Frame', {
-                Name = "Circle",
-                Size = UDim2.new(0, IndicatorSize * 0.8, 0, IndicatorSize * 0.8),
-                Position = UDim2.new(0, IndicatorSize * 0.1, 0.5, -IndicatorSize * 0.4),
-                BackgroundColor3 = AuraUI.FontColor,
-                Parent = Indicator,
-            })
-            AuraUI:Create('UICorner', {CornerRadius = UDim.new(1, 0), Parent = ToggleCircle})
+            local ToggleCircle = Library:Create('Frame', {
+                Name = "Circle";
+                Size = UDim2.new(0, IndicatorSize * 0.8, 0, IndicatorSize * 0.8);
+                Position = UDim2.new(0, IndicatorSize * 0.1, 0.5, -IndicatorSize * 0.4);
+                BackgroundColor3 = Library.FontColor;
+                Parent = Indicator;
+            });
+            Library:Create('UICorner', {CornerRadius = UDim.new(1, 0), Parent = ToggleCircle});
 
             local function UpdateVisuals(IsActive)
-                local IndicatorColor = IsActive and AuraUI.AccentColor or AuraUI.OutlineColor
+                local IndicatorColor = IsActive and Library.AccentColor or Library.OutlineColor;
                 local Position = IsActive and UDim2.new(1, -IndicatorSize * 0.1 - ToggleCircle.Size.Offset.X, 0.5, -IndicatorSize * 0.4)
-                                          or UDim2.new(0, IndicatorSize * 0.1, 0.5, -IndicatorSize * 0.4)
+                                          or UDim2.new(0, IndicatorSize * 0.1, 0.5, -IndicatorSize * 0.4);
 
-                TweenService:Create(Indicator, TweenInfo.new(0.2), {BackgroundColor3 = IndicatorColor}):Play()
-                TweenService:Create(ToggleCircle, TweenInfo.new(0.2), {Position = Position}):Play()
-                ToggleCircle.BackgroundColor3 = IsActive and Color3.new(1, 1, 1) or AuraUI.FontColor
-                
-                local Grad = Indicator:FindFirstChildOfClass("UIGradient")
-                if Grad then
-                   Grad.Color = ColorSequence.new({
-                        ColorSequenceKeypoint.new(0, IndicatorColor),
-                        ColorSequenceKeypoint.new(1, IndicatorColor * Color3.new(0.9, 0.9, 0.9))
-                    })
-                end
-            end
+                TweenService:Create(Indicator, TweenInfo.new(0.2), {BackgroundColor3 = IndicatorColor}):Play();
+                TweenService:Create(ToggleCircle, TweenInfo.new(0.2), {Position = Position}):Play();
+                ToggleCircle.BackgroundColor3 = IsActive and Color3.new(1, 1, 1) or Library.FontColor;
+            end;
             
             function ToggleElement:SetValue(NewState)
                 if NewState ~= self.Value then
-                    self.Value = NewState
-                    UpdateVisuals(NewState)
-                    self.CallbackFunc(NewState)
+                    self.Value = NewState;
+                    UpdateVisuals(NewState);
+                    self.CallbackFunc(NewState);
                 end
-            end
+            end;
 
             function ToggleElement:OnChanged(Func)
-                self.CallbackFunc = Func
-            end
+                self.CallbackFunc = Func;
+            end;
 
             Indicator.MouseButton1Click:Connect(function()
-                ToggleElement:SetValue(not ToggleElement.Value)
-            end)
+                ToggleElement:SetValue(not ToggleElement.Value);
+            end);
 
-            UpdateVisuals(ToggleElement.Value)
-            table.insert(Tab.Elements, ToggleFrame)
+            UpdateVisuals(ToggleElement.Value);
+            table.insert(Tab.Elements, ToggleFrame);
             
-            return ToggleElement
-        end
+            return ToggleElement;
+        end;
 
         function Tab:Button(Name, Callback)
-            local Button = AuraUI:Create('TextButton', {
-                Name = "Button_" .. Name:gsub(" ", "_"),
-                Text = Name,
-                Font = AuraUI.FONT,
-                TextSize = AuraUI.FONT_SIZE,
-                TextColor3 = Color3.new(1, 1, 1),
-                Size = UDim2.new(1, 0, 0, 35),
-                Parent = TabFrame,
-            })
-            ApplyGlassStyle(Button, 8, 0, AuraUI.AccentColor)
+            local Button = Library:Create('TextButton', {
+                Name = "Button_" .. Name:gsub(" ", "_");
+                Text = Name;
+                Font = Library.FONT;
+                TextSize = Library.FONT_SIZE;
+                TextColor3 = Color3.new(1, 1, 1);
+                BackgroundColor3 = Library.AccentColor;
+                Size = UDim2.new(1, 0, 0, 35);
+                Parent = TabFrame;
+            });
+            Library:Style(Button, Library.CORNER_RADIUS - 2, Library.AccentColor, true, 0);
 
             Button.MouseEnter:Connect(function()
-                TweenService:Create(Button, TweenInfo.new(0.15), {BackgroundTransparency = 0.1}):Play()
-            end)
+                TweenService:Create(Button, TweenInfo.new(0.15), {BackgroundColor3 = Library.AccentColor * Color3.new(0.8, 0.8, 0.8)}):Play();
+            end);
             Button.MouseLeave:Connect(function()
-                TweenService:Create(Button, TweenInfo.new(0.15), {BackgroundTransparency = 0}):Play()
-            end)
+                TweenService:Create(Button, TweenInfo.new(0.15), {BackgroundColor3 = Library.AccentColor}):Play();
+            end);
             
-            Button.MouseButton1Click:Connect(Callback or function() end)
+            Button.MouseButton1Click:Connect(Callback or function() end);
 
-            table.insert(Tab.Elements, Button)
+            table.insert(Tab.Elements, Button);
             
             local ButtonElement = {
                 Button = Button
-            }
-            return ButtonElement
-        end
+            };
+            return ButtonElement;
+        end;
         
         function Tab:Slider(Name, Min, Max, Default, Step)
             local SliderElement = {
-                Value = Default or Min,
-                CallbackFunc = function() end,
-            }
-            Options[Name] = SliderElement
-            Min, Max, Step = Min or 0, Max or 100, Step or 1
+                Value = Default or Min;
+                CallbackFunc = function() end;
+            };
+            Options[Name] = SliderElement;
+            Min, Max, Step = Min or 0, Max or 100, Step or 1;
 
-            local SliderFrame = AuraUI:Create('Frame', {
-                Name = "Slider_" .. Name:gsub(" ", "_"),
-                Size = UDim2.new(1, 0, 0, 50),
-                BackgroundTransparency = 1,
-                Parent = TabFrame
-            })
+            local SliderFrame = Library:Create('Frame', {
+                Name = "Slider_" .. Name:gsub(" ", "_");
+                Size = UDim2.new(1, 0, 0, 50);
+                BackgroundTransparency = 1;
+                Parent = TabFrame;
+            });
 
-            local Label = AuraUI:Create('TextLabel', {
-                Name = "Label",
-                Text = string.format("%s: %.2f", Name, SliderElement.Value),
-                Font = AuraUI.FONT,
-                TextSize = AuraUI.FONT_SIZE,
-                TextColor3 = AuraUI.FontColor,
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0.5, 0),
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = SliderFrame
-            })
+            local Label = Library:Create('TextLabel', {
+                Name = "Label";
+                Text = string.format("%s: %.2f", Name, SliderElement.Value);
+                Font = Library.FONT;
+                TextSize = Library.FONT_SIZE;
+                TextColor3 = Library.FontColor;
+                BackgroundTransparency = 1;
+                Size = UDim2.new(1, 0, 0.5, 0);
+                TextXAlignment = Enum.TextXAlignment.Left;
+                Parent = SliderFrame;
+            });
 
-            local Track = AuraUI:Create('Frame', {
-                Name = "Track",
-                Size = UDim2.new(1, 0, 0, 8),
-                Position = UDim2.new(0, 0, 0.6, 0),
-                BackgroundColor3 = AuraUI.OutlineColor,
-                BackgroundTransparency = AuraUI.Transparency + 0.2,
-                Parent = SliderFrame,
-            })
-            ApplyGlassStyle(Track, 4, AuraUI.Transparency + 0.2, AuraUI.OutlineColor)
+            local Track = Library:Create('Frame', {
+                Name = "Track";
+                Size = UDim2.new(1, 0, 0, 8);
+                Position = UDim2.new(0, 0, 0.6, 0);
+                BackgroundColor3 = Library.OutlineColor;
+                BackgroundTransparency = 0;
+                Parent = SliderFrame;
+            });
+            Library:Style(Track, 4, Library.OutlineColor, true, 0);
             
-            local Fill = AuraUI:Create('Frame', {
-                Name = "Fill",
-                Size = UDim2.new(0, 0, 1, 0),
-                Position = UDim2.new(0, 0, 0, 0),
-                BackgroundColor3 = AuraUI.AccentColor,
-                Parent = Track,
-            })
-            AuraUI:Create('UICorner', {CornerRadius = UDim.new(1, 0), Parent = Fill})
+            local Fill = Library:Create('Frame', {
+                Name = "Fill";
+                Size = UDim2.new(0, 0, 1, 0);
+                Position = UDim2.new(0, 0, 0, 0);
+                BackgroundColor3 = Library.AccentColor;
+                Parent = Track;
+            });
+            Library:Create('UICorner', {CornerRadius = UDim.new(1, 0), Parent = Fill});
             
-            local Knob = AuraUI:Create('Frame', {
-                Name = "Knob",
-                Size = UDim2.new(0, 16, 0, 16),
-                Position = UDim2.new(0, -8, 0.5, -8),
-                BackgroundColor3 = AuraUI.AccentColor,
-                Parent = Track,
-                ZIndex = 2
-            })
-            AuraUI:Create('UICorner', {CornerRadius = UDim.new(1, 0), Parent = Knob})
+            local Knob = Library:Create('Frame', {
+                Name = "Knob";
+                Size = UDim2.new(0, 16, 0, 16);
+                Position = UDim2.new(0, -8, 0.5, -8);
+                BackgroundColor3 = Library.AccentColor;
+                Parent = Track;
+                ZIndex = 2;
+            });
+            Library:Create('UICorner', {CornerRadius = UDim.new(1, 0), Parent = Knob});
             
-            local IsDragging = false
+            local IsDragging = false;
             
             local function UpdateVisuals(Value)
-                local FillRatio = (Value - Min) / (Max - Min)
-                local TrackWidth = Track.AbsoluteSize.X
-                local KnobOffset = FillRatio * TrackWidth
+                local FillRatio = (Value - Min) / (Max - Min);
+                local TrackWidth = Track.AbsoluteSize.X;
+                local KnobOffset = FillRatio * TrackWidth;
                 
-                Fill.Size = UDim2.new(0, KnobOffset, 1, 0)
-                Knob.Position = UDim2.new(0, KnobOffset - 8, 0.5, -8)
-                Label.Text = string.format("%s: %.2f", Name, Value)
-            end
+                Fill.Size = UDim2.new(0, KnobOffset, 1, 0);
+                Knob.Position = UDim2.new(0, KnobOffset - 8, 0.5, -8);
+                Label.Text = string.format("%s: %.2f", Name, Value);
+            end;
 
             local function UpdateSlider(Input)
-                local TrackPos = Track.AbsolutePosition.X
-                local TrackWidth = Track.AbsoluteSize.X
-                local MouseX = Input.Position.X
+                local TrackPos = Track.AbsolutePosition.X;
+                local TrackWidth = Track.AbsoluteSize.X;
+                local MouseX = Input.Position.X;
                 
-                local Ratio = math.min(1, math.max(0, (MouseX - TrackPos) / TrackWidth))
-                local Value = Min + Ratio * (Max - Min)
+                local Ratio = math.min(1, math.max(0, (MouseX - TrackPos) / TrackWidth));
+                local Value = Min + Ratio * (Max - Min);
                 
                 if Step > 0 then
-                    Value = math.floor((Value / Step) + 0.5) * Step
-                end
-                Value = math.min(Max, math.max(Min, Value))
+                    Value = math.floor((Value / Step) + 0.5) * Step;
+                end;
+                Value = math.min(Max, math.max(Min, Value));
                 
                 if Value ~= SliderElement.Value then
-                    SliderElement.Value = Value
-                    UpdateVisuals(Value)
-                    SliderElement.CallbackFunc(Value)
+                    SliderElement.Value = Value;
+                    UpdateVisuals(Value);
+                    SliderElement.CallbackFunc(Value);
                 end
-            end
+            end;
             
             function SliderElement:SetValue(NewValue)
-                local ClampedValue = math.min(Max, math.max(Min, NewValue))
+                local ClampedValue = math.min(Max, math.max(Min, NewValue));
                 
                 if Step > 0 then
-                    ClampedValue = math.floor((ClampedValue / Step) + 0.5) * Step
-                end
+                    ClampedValue = math.floor((ClampedValue / Step) + 0.5) * Step;
+                end;
                 
                 if ClampedValue ~= self.Value then
-                    self.Value = ClampedValue
-                    UpdateVisuals(ClampedValue)
-                    self.CallbackFunc(ClampedValue)
+                    self.Value = ClampedValue;
+                    UpdateVisuals(ClampedValue);
+                    self.CallbackFunc(ClampedValue);
                 end
-            end
+            end;
 
             function SliderElement:OnChanged(Func)
-                self.CallbackFunc = Func
-            end
+                self.CallbackFunc = Func;
+            end;
 
             Track.InputBegan:Connect(function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-                    IsDragging = true
-                    UpdateSlider(Input)
+                    IsDragging = true;
+                    UpdateSlider(Input);
                 end
-            end)
+            end);
 
             Knob.InputBegan:Connect(function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-                    IsDragging = true
-                    Knob.ZIndex = 3
+                    IsDragging = true;
+                    Knob.ZIndex = 3;
                 end
-            end)
+            end);
 
             InputService.InputChanged:Connect(function(Input)
                 if IsDragging and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
-                    UpdateSlider(Input)
+                    UpdateSlider(Input);
                 end
-            end)
+            end);
 
             InputService.InputEnded:Connect(function(Input)
                 if IsDragging and (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch) then
-                    IsDragging = false
-                    Knob.ZIndex = 2
+                    IsDragging = false;
+                    Knob.ZIndex = 2;
                 end
-            end)
+            end);
             
-            UpdateVisuals(SliderElement.Value)
+            UpdateVisuals(SliderElement.Value);
 
-            table.insert(Tab.Elements, SliderFrame)
+            table.insert(Tab.Elements, SliderFrame);
             
-            return SliderElement
-        end
+            return SliderElement;
+        end;
 
-        Window.Tabs[Name] = Tab
-        return Tab
-    end
+        Outer.Tabs[Name] = Tab;
+        return Tab;
+    end;
 
-    local ModalElement = AuraUI:Create('TextButton', {
-        BackgroundTransparency = 1,
-        Size = UDim2.new(0, 0, 0, 0),
-        Visible = true,
-        Text = '',
-        Modal = false,
-        Parent = ScreenGui,
-    })
-    
-    local isVisible = true
-    
+    local ModalElement = Library:Create('TextButton', {
+        BackgroundTransparency = 1;
+        Size = UDim2.new(0, 0, 0, 0);
+        Visible = true;
+        Text = '';
+        Modal = false;
+        Parent = ScreenGui;
+    });
+
     InputService.InputBegan:Connect(function(Input, Processed)
         if Input.KeyCode == Enum.KeyCode.RightControl or (Input.KeyCode == Enum.KeyCode.RightShift and (not Processed)) then
-            isVisible = not isVisible
-            Window.Visible = isVisible
-            ModalElement.Modal = isVisible
+            Outer.Visible = not Outer.Visible;
+            ModalElement.Modal = Outer.Visible;
 
-            InputService.MouseIconEnabled = isVisible
+            local oIcon = Mouse.Icon;
+            local State = InputService.MouseIconEnabled;
+
+            if Outer.Visible then
+                InputService.MouseIconEnabled = false;
+
+                local Cursor = Drawing.new('Triangle');
+                Cursor.Thickness = 1;
+                Cursor.Filled = true;
+
+                RenderStepped:Connect(function()
+                    if not Outer.Visible then
+                        Cursor.Visible = false;
+                        return;
+                    end
+                    local mPos = workspace.CurrentCamera:WorldToViewportPoint(Mouse.Hit.p);
+
+                    Cursor.Color = Library.AccentColor;
+                    Cursor.PointA = Vector2.new(mPos.X, mPos.Y);
+                    Cursor.PointB = Vector2.new(mPos.X, mPos.Y) + Vector2.new(6, 14);
+                    Cursor.PointC = Vector2.new(mPos.X, mPos.Y) + Vector2.new(-6, 14);
+                    Cursor.Visible = true;
+                end);
+            else
+                InputService.MouseIconEnabled = true;
+                local Cursor = Drawing.new('Triangle');
+                Cursor.Visible = false;
+            end
         end
-    end)
+    end);
     
-    Window.Position = UDim2.new(0.5, -Window.Size.Offset.X / 2, 0.5, -Window.Size.Offset.Y / 2)
+    Outer.Position = UDim2.new(0.5, -Outer.Size.Offset.X / 2, 0.5, -Outer.Size.Offset.Y / 2);
 
-    return Window
-end
+    return Window;
+end;
 
-getgenv().AuraUI = AuraUI
+getgenv().Library = Library;
+getgenv().Linoria = Library;
