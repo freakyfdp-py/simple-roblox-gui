@@ -5,23 +5,19 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
--- UI Constants
 local UI_BG_COLOR = Color3.fromRGB(30, 30, 30)
 local UI_ELEMENT_COLOR = Color3.fromRGB(50, 50, 50)
 local UI_SECTION_COLOR = Color3.fromRGB(40, 40, 40)
-local UI_ACCENT_COLOR = Color3.fromRGB(0, 150, 255) -- Standard blue for highlights
+local UI_ACCENT_COLOR = Color3.fromRGB(0, 150, 255)
 local UI_TOGGLE_ON = Color3.fromRGB(0, 255, 0)
 local UI_TOGGLE_OFF = Color3.fromRGB(255, 0, 0)
 local UI_TEXT_COLOR = Color3.new(1, 1, 1)
 local FONT = Enum.Font.SourceSans
 
--- Helper function to apply properties to an instance (shorthand)
 local function c(o, p)
     for k, v in pairs(p) do o[k] = v end
     return o
 end
-
---- UI Element Constructors ---
 
 function lib.makeText(parent, text, size, color)
     local l = Instance.new("TextLabel")
@@ -53,8 +49,6 @@ function lib.makeRect(parent, size, bg, stroke, corner)
     end
     return f
 end
-
---- Core Window Initialization ---
 
 function lib.Init(title, corner)
     local gui = Instance.new("ScreenGui")
@@ -90,7 +84,6 @@ function lib.Init(title, corner)
     local tabs = {}
     local keybinds = {}
 
-    -- Dragging Logic (Optimized using InputChanged/InputEnded)
     local dragging, dragInput, dragStart, startPos = false
     header.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 and not dragInput then
@@ -113,7 +106,6 @@ function lib.Init(title, corner)
         end
     end)
 
-    -- Toggle UI (F5)
     local visible = true
     local function toggleUI()
         visible = not visible
@@ -125,8 +117,6 @@ function lib.Init(title, corner)
             toggleUI()
         end
     end)
-
-    --- Tabs ---
 
     local function createTab(tabName)
         local btn = Instance.new("TextButton")
@@ -160,8 +150,6 @@ function lib.Init(title, corner)
         return tabs[tabName]
     end
 
-    --- Sections ---
-
     local function createSection(tab, sectionName)
         local section = lib.makeRect(tab.frame, Vector2.new(0, 0), UI_SECTION_COLOR, nil, 5)
 
@@ -185,8 +173,6 @@ function lib.Init(title, corner)
         tab.sections[sectionName] = {frame = section, content = secContent}
         return tab.sections[sectionName]
     end
-
-    --- Elements ---
 
     local function addLabel(section, text)
         local l = lib.makeText(section.content, text, Vector2.new(0, 25), UI_TEXT_COLOR)
@@ -300,14 +286,10 @@ function lib.Init(title, corner)
             
             local value = min + (max - min) * ratio
             
-            -- Simple rounding to one decimal place for display
             value = math.floor(value * 10 + 0.5) / 10
-            
-            -- Apply step rounding if necessary (not fully implemented here, use simple rounding)
             
             currentValue = value
             
-            -- Update UI
             local fillScale = (value - min) / (max - min)
             fill.Size = UDim2.new(fillScale, 0, 1, 0)
             thumb.Position = UDim2.new(fillScale, -6, 0.5, -6)
@@ -336,13 +318,11 @@ function lib.Init(title, corner)
             end
         end)
 
-        -- Initialize position
         updateValue(sliderBar.AbsolutePosition.X + (default - min) / (max - min) * sliderBar.AbsoluteSize.X)
         
         return {frame=f, set=function(val) updateValue(sliderBar.AbsolutePosition.X + (val - min) / (max - min) * sliderBar.AbsoluteSize.X) end, getValue=function() return currentValue end}
     end
 
-    -- Input for keybinds
     UserInputService.InputBegan:Connect(function(input)
         if not input.Processed and keybinds[input.KeyCode] then keybinds[input.KeyCode]("Begin") end
     end)
