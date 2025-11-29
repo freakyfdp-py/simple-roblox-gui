@@ -1,11 +1,10 @@
 --!strict
 
--- SERVICES
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local task = task or {} 
 
--- CONFIGURATION
 local UI_CONFIG = {
     WINDOW_SIZE = UDim2.new(0, 400, 0.6, 0),
     WINDOW_COLOR = Color3.fromHex("1e1e1e"),
@@ -17,15 +16,9 @@ local UI_CONFIG = {
     LINE_HEIGHT = 30,
 }
 
--- TYPE DEFINITIONS
 type ControlCallback = (value: any) -> ()
 
--- THE MAIN MODULE TABLE
 local UI = {}
-
---[[
-    CONTROL BASE FUNCTIONS
-]]
 
 local function createControlFrame(parent: GuiObject, name: string): Frame
     local frame = Instance.new("Frame")
@@ -58,9 +51,6 @@ local function createLabel(parent: GuiObject, text: string): TextLabel
     return label
 end
 
---[[
-    SECTION OBJECT
-]]
 local Section = {}
 Section.__index = Section
 
@@ -218,11 +208,9 @@ function Section:createSlider(name: string, min: number, max: number, default: n
 end
 
 
--- Constructor for a Section
 function Section.new(tabContainer: GuiObject)
     local self = setmetatable({}, Section)
 
-    -- Section Container now uses AutomaticSize for its height (Y)
     self.Container = Instance.new("Frame")
     self.Container.Name = "SectionContainer"
     self.Container.Size = UDim2.new(1, 0, 0, 0) 
@@ -231,7 +219,6 @@ function Section.new(tabContainer: GuiObject)
     self.Container.BorderSizePixel = 0
     self.Container.Parent = tabContainer
 
-    -- Layout for Controls
     local listLayout = Instance.new("UIListLayout")
     listLayout.FillDirection = Enum.FillDirection.Vertical
     listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -243,13 +230,9 @@ function Section.new(tabContainer: GuiObject)
     return self
 end
 
---[[
-    TAB OBJECT
-]]
 local Tab = {}
 Tab.__index = Tab
 
--- Creates a new section within this tab
 function Tab:createSection(title: string)
     local header = Instance.new("TextLabel")
     header.Name = "SectionHeader"
@@ -272,24 +255,21 @@ function Tab:createSection(title: string)
     return sectionObject
 end
 
--- Constructor for a Tab
 function Tab.new(windowContainer: GuiObject, tabName: string)
     local self = setmetatable({}, Tab)
     
-    -- Main container is now a ScrollingFrame
     self.Container = Instance.new("ScrollingFrame")
     self.Container.Name = "Content_" .. tabName:gsub("%s+", "_")
-    self.Container.Size = UDim2.new(1, 0, 1, -UI_CONFIG.LINE_HEIGHT * 2) -- Adjusted for title bar and tab bar
+    self.Container.Size = UDim2.new(1, 0, 1, -UI_CONFIG.LINE_HEIGHT * 2) 
     self.Container.Position = UDim2.new(0, 0, UI_CONFIG.LINE_HEIGHT * 2, 0)
     self.Container.BackgroundColor3 = UI_CONFIG.WINDOW_COLOR
     self.Container.BackgroundTransparency = 1
     self.Container.BorderSizePixel = 0
-    self.Container.CanvasSize = UDim2.new(0, 0, 0, 0) -- Will be updated by layout
+    self.Container.CanvasSize = UDim2.new(0, 0, 0, 0)
     self.Container.VerticalScrollBarInset = Enum.ScrollBarInset.Always
     self.Container.Parent = windowContainer
     self.Container.Visible = false
 
-    -- Inner container holds all sections and headers and uses AutomaticSize
     self.InnerContainer = Instance.new("Frame")
     self.InnerContainer.Name = "InnerContainer"
     self.InnerContainer.Size = UDim2.new(1, 0, 0, 0)
@@ -297,7 +277,6 @@ function Tab.new(windowContainer: GuiObject, tabName: string)
     self.InnerContainer.BackgroundTransparency = 1
     self.InnerContainer.Parent = self.Container
 
-    -- Layout for Sections
     local listLayout = Instance.new("UIListLayout")
     listLayout.FillDirection = Enum.FillDirection.Vertical
     listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -305,7 +284,6 @@ function Tab.new(windowContainer: GuiObject, tabName: string)
     listLayout.Padding = UDim.new(0, UI_CONFIG.PADDING)
     listLayout.Parent = self.InnerContainer
     
-    -- Update CanvasSize whenever InnerContainer size changes
     self.InnerContainer.SizeChanged:Connect(function()
         self.Container.CanvasSize = UDim2.new(0, 0, 0, self.InnerContainer.AbsoluteSize.Y)
     end)
@@ -313,19 +291,13 @@ function Tab.new(windowContainer: GuiObject, tabName: string)
     return self
 end
 
-
---[[
-    WINDOW OBJECT
-]]
 local Window = {}
 Window.__index = Window
 
--- Creates a new tab within this window
 function Window:createTab(name: string)
     local tabObject = Tab.new(self.Container, name)
     table.insert(self.Tabs, tabObject)
     
-    -- Create the tab button
     local button = Instance.new("TextButton")
     button.Name = name .. "TabButton"
     button.Text = name
@@ -338,39 +310,34 @@ function Window:createTab(name: string)
 
     local currentTab = tabObject
 
-    -- Define the logic for switching the tab
     local function switchTab()
-        -- Hide all tab content
         for _, tab in ipairs(self.Tabs) do
             tab.Container.Visible = false
         end
-        -- Reset all tab buttons visually
         for _, btn in ipairs(self.TabBar:GetChildren()) do
             if btn:IsA("TextButton") then
                 btn.BackgroundColor3 = UI_CONFIG.TAB_BAR_COLOR
             end
         end
 
-        -- Show current tab content and update button visuals
         currentTab.Container.Visible = true
         button.BackgroundColor3 = UI_CONFIG.ACCENT_COLOR
     end
 
     button.MouseButton1Click:Connect(switchTab)
     
-    -- Automatically switch to the first tab created
     if #self.Tabs == 1 then
-        -- Use task.wait() for a reliable micro-yield to allow layout to process
-        -- before simulating the click logic directly.
-        task.wait() 
+        if task.wait then
+            task.wait() 
+        else
+            wait()
+        end
         switchTab()
     end
 
     return tabObject
 end
 
-
--- Constructor for a Window
 function Window.new(title: string)
     local self = setmetatable({}, Window)
     self.Tabs = {}
@@ -440,11 +407,6 @@ function Window.new(title: string)
     
     return self
 end
-
-
---[[
-    MODULE INITIALIZATION
-]]
 
 function UI:Init(title: string): Window
     if not Players.LocalPlayer then
