@@ -4,14 +4,12 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 
--- Define Colors
-local UI_BG_COLOR = Color3.fromRGB(35, 39, 42)      -- Main window background (Darkest)
--- **FIX:** Swapping UI_ELEMENT_COLOR and UI_SECTION_COLOR for correct blending
-local UI_SECTION_COLOR = Color3.fromRGB(40, 44, 47)  -- Section background (e.g., "Auto-Clicker" box)
-local UI_ELEMENT_COLOR = Color3.fromRGB(44, 47, 51)  -- Element background (Buttons, Toggles, Sliders - Lighter than the section)
-local UI_ACCENT_COLOR = Color3.fromRGB(88, 101, 242) -- Accent color (Slider fill, Toast title)
-local UI_TOGGLE_ON = Color3.fromRGB(240, 71, 71)    -- Toggle ON color (Red)
-local UI_TOGGLE_OFF = Color3.fromRGB(67, 181, 129)   -- Toggle OFF color (Green)
+local UI_BG_COLOR = Color3.fromRGB(30, 33, 36)
+local UI_SECTION_COLOR = Color3.fromRGB(35, 39, 42)
+local UI_ELEMENT_COLOR = Color3.fromRGB(40, 44, 47)
+local UI_ACCENT_COLOR = Color3.fromRGB(88, 101, 242)
+local UI_TOGGLE_ON = Color3.fromRGB(240, 71, 71)
+local UI_TOGGLE_OFF = Color3.fromRGB(67, 181, 129)
 local UI_TEXT_COLOR = Color3.new(0.9, 0.9, 0.9)
 local FONT = Enum.Font.SourceSansBold
 local CORNER_RADIUS = 6
@@ -210,7 +208,6 @@ function lib.Init(title, corner)
         timerBar.UIStroke.Transparency = 1
         timerBar.BackgroundTransparency = 1
 
-        -- Fade In
         local tweenInfoIn = TweenInfo.new(fadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
         TweenService:Create(toast, tweenInfoIn, {BackgroundTransparency = 0}):Play()
         TweenService:Create(titleLabel, tweenInfoIn, {TextTransparency = 0}):Play()
@@ -219,13 +216,11 @@ function lib.Init(title, corner)
         TweenService:Create(barFrame.UIStroke, tweenInfoIn, {Transparency = 0}):Play()
         TweenService:Create(timerBar, tweenInfoIn, {BackgroundTransparency = 0}):Play()
         
-        -- Timer Bar
         local tweenInfoTimer = TweenInfo.new(duration, Enum.EasingStyle.Linear)
         local timerTween = TweenService:Create(timerBar, tweenInfoTimer, {Size = UDim2.new(0, 0, 1, 0)})
         timerTween:Play()
 
         task.delay(duration, function()
-            -- Fade Out
             local tweenInfoOut = TweenInfo.new(fadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
             local fadeOut = TweenService:Create(toast, tweenInfoOut, {BackgroundTransparency = 1})
 
@@ -280,9 +275,8 @@ function lib.Init(title, corner)
     end
 
     local function createSection(tab, sectionName)
-        -- Uses the darker UI_SECTION_COLOR
         local section = lib.makeRect(tab.frame, Vector2.new(0, 0), UI_SECTION_COLOR, nil, CORNER_RADIUS)
-        section.Size = UDim2.new(1, 0, 0, 0) 
+        section.Size = UDim2.new(1, 0, 0, 0)
 
         local title = lib.makeText(section, sectionName, Vector2.new(0, 25), UI_TEXT_COLOR, Enum.TextXAlignment.Left, 16)
         title.Size = UDim2.new(1, -20, 0, 25)
@@ -314,14 +308,12 @@ function lib.Init(title, corner)
     end
 
     local function addSeparator(section)
-        -- Separator uses UI_ELEMENT_COLOR (lighter) to contrast slightly with the section background (darker)
         local s = lib.makeRect(section.content, Vector2.new(0, 2), UI_ELEMENT_COLOR, nil, 0)
         s.Size = UDim2.new(1, 0, 0, 2)
         return s
     end
 
     local function addButton(section, text, callback, keybind)
-        -- Uses the lighter UI_ELEMENT_COLOR
         local b = lib.makeRect(section.content, Vector2.new(0, 35), UI_ELEMENT_COLOR, nil, CORNER_RADIUS)
         b.Size = UDim2.new(1, 0, 0, 35)
 
@@ -339,7 +331,6 @@ function lib.Init(title, corner)
     end
 
     local function addToggle(section, text, default, callback, keybind, mode)
-        -- Uses the lighter UI_ELEMENT_COLOR
         local f = lib.makeRect(section.content, Vector2.new(0, 35), UI_ELEMENT_COLOR, nil, CORNER_RADIUS)
         f.Size = UDim2.new(1, 0, 0, 35)
 
@@ -404,7 +395,6 @@ function lib.Init(title, corner)
 
     local function addSlider(section, text, min, max, default, callback)
         local frameHeight = 45
-        -- Uses the lighter UI_ELEMENT_COLOR
         local f = lib.makeRect(section.content, Vector2.new(0, frameHeight), UI_ELEMENT_COLOR, nil, CORNER_RADIUS)
         f.Size = UDim2.new(1, 0, 0, frameHeight)
 
@@ -414,7 +404,6 @@ function lib.Init(title, corner)
         label.Size = UDim2.new(1, -10, 0, 18)
         label.Position = UDim2.new(0, 10, 0, 3)
 
-        -- Slider bar track uses UI_SECTION_COLOR (darker) to contrast with the element background
         local sliderBar = lib.makeRect(f, Vector2.new(0, 6), UI_SECTION_COLOR, nil, 3)
         sliderBar.Size = UDim2.new(1, -20, 0, 6)
         sliderBar.Position = UDim2.new(0, 10, 0, 25)
