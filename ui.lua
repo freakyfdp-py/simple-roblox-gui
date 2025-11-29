@@ -1,16 +1,5 @@
 --!strict
 
---[[
-    Roblox UI Module Framework (UI.lua)
-
-    This module provides a basic, functional framework for creating simple
-    windowed user interfaces (GUIs) in Roblox, following a Window > Tab > Section > Control hierarchy.
-
-    NOTE: This is a structural example. In a real application, you would need
-    to implement detailed UI element construction (Frames, TextLabels, InputBases)
-    and robust event handling (mouse input, signaling, Tweening) for aesthetics.
-]]
-
 -- SERVICES
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -28,7 +17,7 @@ local UI_CONFIG = {
     LINE_HEIGHT = 30,
 }
 
--- TYPE DEFINITIONS (For Luau Type Checking)
+-- TYPE DEFINITIONS
 type ControlCallback = (value: any) -> ()
 
 -- THE MAIN MODULE TABLE
@@ -38,7 +27,6 @@ local UI = {}
     CONTROL BASE FUNCTIONS
 ]]
 
--- Creates a base frame for any control, handling basic layout and spacing.
 local function createControlFrame(parent: GuiObject, name: string): Frame
     local frame = Instance.new("Frame")
     frame.Name = name
@@ -47,7 +35,6 @@ local function createControlFrame(parent: GuiObject, name: string): Frame
     frame.BorderSizePixel = 0
     frame.Parent = parent
 
-    -- Layout inside the control frame
     local paddingLayout = Instance.new("UIPadding")
     paddingLayout.PaddingTop = UDim.new(0, 5)
     paddingLayout.PaddingBottom = UDim.new(0, 5)
@@ -56,7 +43,6 @@ local function createControlFrame(parent: GuiObject, name: string): Frame
     return frame
 end
 
--- Creates a standard TextLabel for control titles/labels
 local function createLabel(parent: GuiObject, text: string): TextLabel
     local label = Instance.new("TextLabel")
     label.Text = text
@@ -78,7 +64,6 @@ end
 local Section = {}
 Section.__index = Section
 
--- Adds a simple visual separator line
 function Section:createSeparator()
     local separator = Instance.new("Frame")
     separator.Name = "Separator"
@@ -89,7 +74,6 @@ function Section:createSeparator()
     separator.Parent = self.Container
 end
 
--- Adds a text label (non-interactive)
 function Section:createLabel(text: string)
     local frame = createControlFrame(self.Container, "LabelControl")
     local label = createLabel(frame, text)
@@ -98,7 +82,6 @@ function Section:createLabel(text: string)
     label.Position = UDim2.new(0, 0, 0, 0)
 end
 
--- Adds a clickable button
 function Section:createButton(text: string, callback: ControlCallback)
     local frame = createControlFrame(self.Container, "ButtonControl")
     local button = Instance.new("TextButton")
@@ -117,7 +100,6 @@ function Section:createButton(text: string, callback: ControlCallback)
     end)
 end
 
--- Adds a boolean toggle switch
 function Section:createToggle(name: string, default: boolean, callback: ControlCallback)
     local currentState = default
     local frame = createControlFrame(self.Container, "ToggleControl")
@@ -155,7 +137,6 @@ function Section:createToggle(name: string, default: boolean, callback: ControlC
     return currentState
 end
 
--- Adds a text input field
 function Section:createTextInput(name: string, default: string, callback: ControlCallback)
     local frame = createControlFrame(self.Container, "TextInputControl")
     createLabel(frame, name)
@@ -179,7 +160,6 @@ function Section:createTextInput(name: string, default: string, callback: Contro
     end)
 end
 
--- Adds a numerical slider
 function Section:createSlider(name: string, min: number, max: number, default: number, step: number, callback: ControlCallback)
     local currentValue = default
     local frame = createControlFrame(self.Container, "SliderControl")
@@ -196,7 +176,6 @@ function Section:createSlider(name: string, min: number, max: number, default: n
     valueLabel.Position = UDim2.new(1, -UI_CONFIG.PADDING, 0, 0)
     valueLabel.Parent = frame
 
-    -- Simple slider representation (a button that handles dragging)
     local sliderBar = Instance.new("Frame")
     sliderBar.Name = "SliderBar"
     sliderBar.Size = UDim2.new(0.4, 0, 0, 4)
@@ -207,20 +186,17 @@ function Section:createSlider(name: string, min: number, max: number, default: n
     
     local fill = Instance.new("Frame")
     fill.Name = "Fill"
-    fill.Size = UDim2.new(0.5, 0, 1, 0) -- Placeholder size
+    fill.Size = UDim2.new(0.5, 0, 1, 0)
     fill.BackgroundColor3 = UI_CONFIG.ACCENT_COLOR
     fill.BorderSizePixel = 0
     fill.Parent = sliderBar
 
-    -- Function to map value to fill size (0 to 1)
     local function updateSliderVisuals(value: number)
         local ratio = (value - min) / (max - min)
         fill.Size = UDim2.new(ratio, 0, 1, 0)
         valueLabel.Text = string.format("%.1f", value)
     end
 
-    -- In a real scenario, you'd implement a MouseButton1Down/Move system on a thumb/handle.
-    -- For simplicity, this example just demonstrates the structure and callback:
     local dummyButton = Instance.new("TextButton")
     dummyButton.Text = "Drag (Simulated)"
     dummyButton.TextSize = 10
@@ -230,7 +206,6 @@ function Section:createSlider(name: string, min: number, max: number, default: n
     dummyButton.Parent = frame
 
     dummyButton.MouseButton1Click:Connect(function()
-        -- Simulate a change
         currentValue = math.min(max, currentValue + step * 2)
         if currentValue > max then currentValue = min end
         updateSliderVisuals(currentValue)
@@ -247,9 +222,11 @@ end
 function Section.new(tabContainer: GuiObject)
     local self = setmetatable({}, Section)
 
+    -- Section Container now uses AutomaticSize for its height (Y)
     self.Container = Instance.new("Frame")
     self.Container.Name = "SectionContainer"
-    self.Container.Size = UDim2.new(1, 0, 0, 0) -- Stretches width, height managed by list layout
+    self.Container.Size = UDim2.new(1, 0, 0, 0) 
+    self.Container.AutomaticSize = Enum.AutomaticSize.Y 
     self.Container.BackgroundColor3 = UI_CONFIG.SECTION_COLOR
     self.Container.BorderSizePixel = 0
     self.Container.Parent = tabContainer
@@ -263,11 +240,6 @@ function Section.new(tabContainer: GuiObject)
     listLayout.Padding = UDim.new(0, 1)
     listLayout.Parent = self.Container
     
-    -- Constraint to make the section container expand with its children
-    local sizeConstraint = Instance.new("UISizeConstraint")
-    sizeConstraint.MinSize = Vector2.new(0, 10)
-    sizeConstraint.Parent = self.Container
-
     return self
 end
 
@@ -279,7 +251,6 @@ Tab.__index = Tab
 
 -- Creates a new section within this tab
 function Tab:createSection(title: string)
-    -- Add Section Header (TextLabel)
     local header = Instance.new("TextLabel")
     header.Name = "SectionHeader"
     header.Text = title
@@ -289,13 +260,13 @@ function Tab:createSection(title: string)
     header.TextXAlignment = Enum.TextXAlignment.Left
     header.BackgroundTransparency = 1
     header.Size = UDim2.new(1, 0, 0, 25)
-    header.Parent = self.Container
+    header.Parent = self.InnerContainer 
 
     local padding = Instance.new("UIPadding")
     padding.PaddingLeft = UDim.new(0, UI_CONFIG.PADDING)
     padding.Parent = header
     
-    local sectionObject = Section.new(self.Container)
+    local sectionObject = Section.new(self.InnerContainer)
     sectionObject.Container.Name = "Section_" .. title:gsub("%s+", "_")
     
     return sectionObject
@@ -305,15 +276,26 @@ end
 function Tab.new(windowContainer: GuiObject, tabName: string)
     local self = setmetatable({}, Tab)
     
-    -- The main container for the tab's content
-    self.Container = Instance.new("Frame")
+    -- Main container is now a ScrollingFrame
+    self.Container = Instance.new("ScrollingFrame")
     self.Container.Name = "Content_" .. tabName:gsub("%s+", "_")
-    self.Container.Size = UDim2.new(1, 0, 1, -UI_CONFIG.LINE_HEIGHT) -- Reserve space for tab buttons
-    self.Container.Position = UDim2.new(0, 0, 0, UI_CONFIG.LINE_HEIGHT)
+    self.Container.Size = UDim2.new(1, 0, 1, -UI_CONFIG.LINE_HEIGHT * 2) -- Adjusted for title bar and tab bar
+    self.Container.Position = UDim2.new(0, 0, UI_CONFIG.LINE_HEIGHT * 2, 0)
     self.Container.BackgroundColor3 = UI_CONFIG.WINDOW_COLOR
+    self.Container.BackgroundTransparency = 1
     self.Container.BorderSizePixel = 0
+    self.Container.CanvasSize = UDim2.new(0, 0, 0, 0) -- Will be updated by layout
+    self.Container.VerticalScrollBarInset = Enum.ScrollBarInset.Always
     self.Container.Parent = windowContainer
-    self.Container.Visible = false -- Hidden by default
+    self.Container.Visible = false
+
+    -- Inner container holds all sections and headers and uses AutomaticSize
+    self.InnerContainer = Instance.new("Frame")
+    self.InnerContainer.Name = "InnerContainer"
+    self.InnerContainer.Size = UDim2.new(1, 0, 0, 0)
+    self.InnerContainer.AutomaticSize = Enum.AutomaticSize.Y
+    self.InnerContainer.BackgroundTransparency = 1
+    self.InnerContainer.Parent = self.Container
 
     -- Layout for Sections
     local listLayout = Instance.new("UIListLayout")
@@ -321,8 +303,13 @@ function Tab.new(windowContainer: GuiObject, tabName: string)
     listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.Padding = UDim.new(0, UI_CONFIG.PADDING)
-    listLayout.Parent = self.Container
+    listLayout.Parent = self.InnerContainer
     
+    -- Update CanvasSize whenever InnerContainer size changes
+    self.InnerContainer.SizeChanged:Connect(function()
+        self.Container.CanvasSize = UDim2.new(0, 0, 0, self.InnerContainer.AbsoluteSize.Y)
+    end)
+
     return self
 end
 
@@ -338,7 +325,6 @@ function Window:createTab(name: string)
     local tabObject = Tab.new(self.Container, name)
     table.insert(self.Tabs, tabObject)
     
-    -- Create the tab button
     local button = Instance.new("TextButton")
     button.Name = name .. "TabButton"
     button.Text = name
@@ -352,25 +338,21 @@ function Window:createTab(name: string)
     local currentTab = tabObject
 
     button.MouseButton1Click:Connect(function()
-        -- Hide all tab content
         for _, tab in ipairs(self.Tabs) do
             tab.Container.Visible = false
         end
-        -- Reset all tab buttons visually
         for _, btn in ipairs(self.TabBar:GetChildren()) do
             if btn:IsA("TextButton") then
                 btn.BackgroundColor3 = UI_CONFIG.TAB_BAR_COLOR
             end
         end
 
-        -- Show current tab content and update button visuals
         currentTab.Container.Visible = true
         button.BackgroundColor3 = UI_CONFIG.ACCENT_COLOR
     end)
     
-    -- Automatically switch to the first tab created
     if #self.Tabs == 1 then
-        button:GetPropertyChangedSignal("Parent"):Wait() -- Wait for layout to process
+        button:GetPropertyChangedSignal("Parent"):Wait()
         button.MouseButton1Click:Fire()
     end
 
@@ -383,13 +365,11 @@ function Window.new(title: string)
     local self = setmetatable({}, Window)
     self.Tabs = {}
 
-    -- 1. Create ScreenGui
     local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
     self.ScreenGui = Instance.new("ScreenGui")
     self.ScreenGui.Name = "UIModuleGUI"
     self.ScreenGui.Parent = playerGui
 
-    -- 2. Create Window Frame
     self.Container = Instance.new("Frame")
     self.Container.Name = "Window_" .. title:gsub("%s+", "_")
     self.Container.Size = UI_CONFIG.WINDOW_SIZE
@@ -399,7 +379,6 @@ function Window.new(title: string)
     self.Container.BorderColor3 = UI_CONFIG.TAB_BAR_COLOR
     self.Container.Parent = self.ScreenGui
     
-    -- 3. Create Title Bar (Drag Handle)
     local titleBar = Instance.new("TextLabel")
     titleBar.Name = "TitleBar"
     titleBar.Text = title
@@ -410,11 +389,10 @@ function Window.new(title: string)
     titleBar.Size = UDim2.new(1, 0, 0, UI_CONFIG.LINE_HEIGHT)
     titleBar.Parent = self.Container
     
-    -- Basic drag functionality (essential for a good UI)
     local drag
     titleBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            local startPos = titleBar.AbsolutePosition
+            local startPos = self.Container.AbsolutePosition
             local startMousePos = Players.LocalPlayer:GetMouse().AbsolutePosition
             
             drag = RunService.Heartbeat:Connect(function()
@@ -432,7 +410,6 @@ function Window.new(title: string)
     end)
 
 
-    -- 4. Create Tab Bar (for buttons)
     self.TabBar = Instance.new("Frame")
     self.TabBar.Name = "TabBar"
     self.TabBar.Size = UDim2.new(1, 0, 0, UI_CONFIG.LINE_HEIGHT)
@@ -450,11 +427,6 @@ function Window.new(title: string)
     local buttonSize = Instance.new("UISizeConstraint")
     buttonSize.MinSize = Vector2.new(60, UI_CONFIG.LINE_HEIGHT)
     buttonSize.Parent = self.TabBar
-
-    -- 5. Add UI Padding to the main content area (below title/tabs)
-    local contentPadding = Instance.new("UIPadding")
-    contentPadding.PaddingTop = UDim.new(0, UI_CONFIG.LINE_HEIGHT * 2)
-    contentPadding.Parent = self.Container
     
     return self
 end
@@ -464,12 +436,10 @@ end
     MODULE INITIALIZATION
 ]]
 
--- Main function to initialize the UI framework
 function UI:Init(title: string): Window
-    -- Check if running on the client
     if not Players.LocalPlayer then
         warn("UI.Init() must be called from a LocalScript.")
-        return nil --[[! or error() !]]
+        return nil
     end
 
     local newWindow = Window.new(title)
