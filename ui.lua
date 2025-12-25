@@ -10,23 +10,28 @@ local accentColor = Color3.fromRGB(110, 40, 180)
 
 local currentSettings = {}
 
-local function makeDraggable(frame, dragHandle)
+local function makeDraggable(frame, handle)
     local dragging, dragStart, startPos
-    dragHandle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    handle.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
-            dragStart = input.Position
+            dragStart = i.Position
             startPos = frame.Position
         end
     end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    UserInputService.InputChanged:Connect(function(i)
+        if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = i.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
         end
     end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    UserInputService.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
         end
     end)
@@ -52,15 +57,15 @@ function mod.init(titleText)
 
     makeDraggable(main, titleBar)
 
-    local titleLabel = Instance.new("TextLabel", titleBar)
-    titleLabel.Size = UDim2.new(1, -20, 1, 0)
-    titleLabel.Position = UDim2.new(0, 15, 0, 0)
-    titleLabel.Text = titleText
-    titleLabel.TextColor3 = Color3.new(1, 1, 1)
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 20
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.BackgroundTransparency = 1
+    local title = Instance.new("TextLabel", titleBar)
+    title.Size = UDim2.new(1, -20, 1, 0)
+    title.Position = UDim2.new(0, 15, 0, 0)
+    title.Text = titleText
+    title.TextColor3 = Color3.new(1, 1, 1)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 20
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.BackgroundTransparency = 1
 
     local sidebar = Instance.new("Frame", main)
     sidebar.Size = UDim2.new(0, 150, 1, -70)
@@ -108,10 +113,10 @@ function mod.init(titleText)
             page.Visible = true
         end)
 
-        local tabObj = {}
+        local tab = {}
         local order = 0
 
-        function tabObj:addSection(text)
+        function tab:addSection(text)
             order += 1
             local label = Instance.new("TextLabel", page)
             label.Size = UDim2.new(1, -20, 0, 30)
@@ -120,33 +125,33 @@ function mod.init(titleText)
             label.TextColor3 = Color3.fromRGB(160, 160, 170)
             label.Font = Enum.Font.GothamBold
             label.TextSize = 13
-            label.BackgroundTransparency = 1
             label.TextXAlignment = Enum.TextXAlignment.Left
+            label.BackgroundTransparency = 1
             label.LayoutOrder = order
         end
 
-        function tabObj:addSlider(text, min, max, default, callback)
+        function tab:addSlider(text, min, max, default, callback)
             order += 1
 
             local frame = Instance.new("Frame", page)
-            frame.Size = UDim2.new(1, -20, 0, 70)
+            frame.Size = UDim2.new(1, -20, 0, 72)
             frame.Position = UDim2.new(0, 10, 0, 0)
             frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
             frame.LayoutOrder = order
             Instance.new("UICorner", frame)
 
             local label = Instance.new("TextLabel", frame)
-            label.Size = UDim2.new(1, -20, 0, 25)
+            label.Size = UDim2.new(1, -20, 0, 24)
             label.Position = UDim2.new(0, 10, 0, 8)
             label.Text = text .. ": " .. default
             label.TextColor3 = Color3.new(1, 1, 1)
-            label.BackgroundTransparency = 1
-            label.TextXAlignment = Enum.TextXAlignment.Left
             label.Font = Enum.Font.GothamMedium
             label.TextSize = 15
+            label.TextXAlignment = Enum.TextXAlignment.Left
+            label.BackgroundTransparency = 1
 
             local bar = Instance.new("Frame", frame)
-            bar.Size = UDim2.new(1, -20, 0, 10)
+            bar.Size = UDim2.new(1, -20, 0, 12)
             bar.Position = UDim2.new(0, 10, 0.65, 0)
             bar.BackgroundColor3 = Color3.fromRGB(55, 55, 60)
             Instance.new("UICorner", bar)
@@ -187,13 +192,58 @@ function mod.init(titleText)
                     dragging = false
                 end
             end)
+
+            function tab:updateSlider(target, val)
+                if target == text then
+                    local p = math.clamp((val - min) / (max - min), 0, 1)
+                    fill.Size = UDim2.new(p, 0, 1, 0)
+                    label.Text = text .. ": " .. val
+                    currentSettings[text] = val
+                    callback(val)
+                end
+            end
         end
 
-        return tabObj
+        function tab:addButton(text, callback)
+            order += 1
+            local btn = Instance.new("TextButton", page)
+            btn.Size = UDim2.new(1, -20, 0, 42)
+            btn.Position = UDim2.new(0, 10, 0, 0)
+            btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+            btn.Text = text
+            btn.TextColor3 = Color3.new(1, 1, 1)
+            btn.Font = Enum.Font.GothamMedium
+            btn.TextSize = 15
+            btn.LayoutOrder = order
+            Instance.new("UICorner", btn)
+            btn.MouseButton1Click:Connect(callback)
+        end
+
+        function tab:addInput(placeholder, callback)
+            order += 1
+            local box = Instance.new("TextBox", page)
+            box.Size = UDim2.new(1, -20, 0, 42)
+            box.Position = UDim2.new(0, 10, 0, 0)
+            box.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+            box.PlaceholderText = placeholder
+            box.PlaceholderColor3 = Color3.fromRGB(100, 100, 110)
+            box.Text = ""
+            box.TextColor3 = Color3.new(1, 1, 1)
+            box.Font = Enum.Font.GothamMedium
+            box.TextSize = 15
+            box.LayoutOrder = order
+            Instance.new("UICorner", box)
+            box.FocusLost:Connect(function(e)
+                if e then callback(box.Text) end
+            end)
+            return box
+        end
+
+        return tab
     end
 
-    UserInputService.InputBegan:Connect(function(input, gpe)
-        if not gpe and input.KeyCode == toggleKey then
+    UserInputService.InputBegan:Connect(function(i, gpe)
+        if not gpe and i.KeyCode == toggleKey then
             isVisible = not isVisible
             main.Visible = isVisible
         end
