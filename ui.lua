@@ -7,7 +7,7 @@ local function rect(offset_x, offset_y, width, height, corner_radius, screenGui)
 	local rectangle = Instance.new("Frame")
 	rectangle.Size = UDim2.new(0, width, 0, height)
 	rectangle.Position = UDim2.new(0.5, offset_x, 0.5, offset_y)
-	rectangle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	rectangle.BackgroundColor3 = Color3.fromRGB(85, 45, 145)
 	rectangle.BorderSizePixel = 2
 	rectangle.Parent = screenGui
 	
