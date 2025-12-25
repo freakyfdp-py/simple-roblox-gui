@@ -54,7 +54,7 @@ mod.init = function(title, blur)
 	screenGui.Parent = playerGui
 
 	local panel = rect(175 / 2, 325 / 2, 175, 325, 0, screenGui)
-	text(title, 175 / 2, 325 / 2, 175, 325, nil, 16, Color3.fromRGB(255, 255, 255), panel, true)
+	text(title, 0, 0, 36, 12, nil, 16, Color3.fromRGB(255, 255, 255), panel, true)
 	return screenGui
 end
 
