@@ -1,7 +1,6 @@
 local mod = {}
 
 local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
 local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -51,12 +50,6 @@ function mod.init(titleText)
     titleBar.BorderSizePixel = 0
     Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 12)
 
-    local overlap = Instance.new("Frame", titleBar)
-    overlap.Size = UDim2.new(1, 0, 0.5, 0)
-    overlap.Position = UDim2.new(0, 0, 0.5, 0)
-    overlap.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    overlap.BorderSizePixel = 0
-
     makeDraggable(main, titleBar)
 
     local titleLabel = Instance.new("TextLabel", titleBar)
@@ -98,11 +91,13 @@ function mod.init(titleText)
         page.BackgroundTransparency = 1
         page.ScrollBarThickness = 4
         page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        page.CanvasPosition = Vector2.new(0, 0)
 
         local layout = Instance.new("UIListLayout", page)
         layout.Padding = UDim.new(0, 12)
-        layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
         layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+        layout.VerticalAlignment = Enum.VerticalAlignment.Top
 
         tabBtn.MouseButton1Click:Connect(function()
             for _, v in pairs(self.container:GetChildren()) do
@@ -119,8 +114,9 @@ function mod.init(titleText)
         function tabObj:addSection(text)
             order += 1
             local label = Instance.new("TextLabel", page)
-            label.Size = UDim2.new(1, -10, 0, 30)
-            label.Text = "  " .. text:upper()
+            label.Size = UDim2.new(1, -20, 0, 30)
+            label.Position = UDim2.new(0, 10, 0, 0)
+            label.Text = text:upper()
             label.TextColor3 = Color3.fromRGB(160, 160, 170)
             label.Font = Enum.Font.GothamBold
             label.TextSize = 13
@@ -133,7 +129,8 @@ function mod.init(titleText)
             order += 1
 
             local frame = Instance.new("Frame", page)
-            frame.Size = UDim2.new(1, -10, 0, 70)
+            frame.Size = UDim2.new(1, -20, 0, 70)
+            frame.Position = UDim2.new(0, 10, 0, 0)
             frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
             frame.LayoutOrder = order
             Instance.new("UICorner", frame)
@@ -149,8 +146,8 @@ function mod.init(titleText)
             label.TextSize = 15
 
             local bar = Instance.new("Frame", frame)
-            bar.Size = UDim2.new(0.9, 0, 0, 10)
-            bar.Position = UDim2.new(0.05, 0, 0.65, 0)
+            bar.Size = UDim2.new(1, -20, 0, 10)
+            bar.Position = UDim2.new(0, 10, 0.65, 0)
             bar.BackgroundColor3 = Color3.fromRGB(55, 55, 60)
             Instance.new("UICorner", bar)
 
@@ -190,49 +187,6 @@ function mod.init(titleText)
                     dragging = false
                 end
             end)
-
-            function tabObj:updateSlider(target, val)
-                if target == text then
-                    local p = math.clamp((val - min) / (max - min), 0, 1)
-                    fill.Size = UDim2.new(p, 0, 1, 0)
-                    label.Text = text .. ": " .. val
-                    currentSettings[text] = val
-                    callback(val)
-                end
-            end
-        end
-
-        function tabObj:addButton(text, callback)
-            order += 1
-            local btn = Instance.new("TextButton", page)
-            btn.Size = UDim2.new(1, -10, 0, 42)
-            btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-            btn.Text = text
-            btn.TextColor3 = Color3.new(1, 1, 1)
-            btn.Font = Enum.Font.GothamMedium
-            btn.TextSize = 15
-            btn.LayoutOrder = order
-            Instance.new("UICorner", btn)
-            btn.MouseButton1Click:Connect(callback)
-        end
-
-        function tabObj:addInput(placeholder, callback)
-            order += 1
-            local box = Instance.new("TextBox", page)
-            box.Size = UDim2.new(1, -10, 0, 42)
-            box.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-            box.PlaceholderText = placeholder
-            box.PlaceholderColor3 = Color3.fromRGB(100, 100, 110)
-            box.Text = ""
-            box.TextColor3 = Color3.new(1, 1, 1)
-            box.Font = Enum.Font.GothamMedium
-            box.TextSize = 15
-            box.LayoutOrder = order
-            Instance.new("UICorner", box)
-            box.FocusLost:Connect(function(e)
-                if e then callback(box.Text) end
-            end)
-            return box
         end
 
         return tabObj
