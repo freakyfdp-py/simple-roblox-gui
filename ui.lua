@@ -1,7 +1,6 @@
 local mod = {}
 
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -9,9 +8,8 @@ local isVisible = true
 local toggleKey = Enum.KeyCode.RightShift
 local accentColor = Color3.fromRGB(110, 40, 180) 
 
--- Helper: Draggable logic
 local function makeDraggable(frame)
-    local dragging, dragInput, dragStart, startPos
+    local dragging, dragStart, startPos
     frame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true; dragStart = input.Position; startPos = frame.Position
@@ -45,23 +43,15 @@ function mod.init(title)
     sidebar.Size = UDim2.new(0, 130, 1, -50)
     sidebar.Position = UDim2.new(0, 10, 0, 45)
     sidebar.BackgroundTransparency = 1
-    local sideLayout = Instance.new("UIListLayout", sidebar)
-    sideLayout.Padding = UDim.new(0, 6)
+    Instance.new("UIListLayout", sidebar).Padding = UDim.new(0, 6)
     
     local container = Instance.new("Frame", main)
     container.Size = UDim2.new(1, -160, 1, -50)
     container.Position = UDim2.new(0, 150, 0, 45)
     container.BackgroundTransparency = 1
 
-    -- The Menu Object
-    local menu = {
-        main = main, 
-        sidebar = sidebar, 
-        container = container, 
-        sg = sg
-    }
+    local menu = {sidebar = sidebar, container = container}
 
-    -- OOP Method to add tabs
     function menu:addTab(name)
         local tabBtn = Instance.new("TextButton", self.sidebar)
         tabBtn.Size = UDim2.new(1, 0, 0, 32)
@@ -76,8 +66,8 @@ function mod.init(title)
         page.BackgroundTransparency = 1
         page.Visible = false
         page.ScrollBarThickness = 0
-        page.CanvasSize = UDim2.new(0,0,0,0)
         page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        page.CanvasSize = UDim2.new(0,0,0,0)
         local layout = Instance.new("UIListLayout", page)
         layout.Padding = UDim.new(0, 10)
         layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -89,7 +79,7 @@ function mod.init(title)
             page.Visible = true
         end)
 
-        -- Tab Object (The fix for your error)
+        -- Proxy table to hold custom methods
         local tabObj = {}
 
         function tabObj:addSection(text)
@@ -212,7 +202,6 @@ function mod.init(title)
         return tabObj
     end
 
-    -- Toggle UI visibility
     UserInputService.InputBegan:Connect(function(input, gpe)
         if not gpe and input.KeyCode == toggleKey then
             isVisible = not isVisible
