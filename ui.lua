@@ -52,6 +52,7 @@ function mod.init(title)
 
     local menu = {sidebar = sidebar, container = container}
 
+    -- TAB FUNCTION
     function menu:addTab(name)
         local tabBtn = Instance.new("TextButton", self.sidebar)
         tabBtn.Size = UDim2.new(1, 0, 0, 32)
@@ -79,7 +80,7 @@ function mod.init(title)
             page.Visible = true
         end)
 
-        -- Proxy table to hold custom methods
+        -- This table holds the functions so they don't error on the ScrollingFrame
         local tabObj = {}
 
         function tabObj:addSection(text)
