@@ -27,6 +27,10 @@ module.init = function init(title)
 		end
 		screenGui.Enabled = state
 	end
+	
+	local function isVisible()
+		return screenGui.Visible
+	end
 end
 
 return module
